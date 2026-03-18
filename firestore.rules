@@ -1,0 +1,97 @@
+// =============================================================================
+// firestore.rules — TamagoVibe Güvenlik Kuralları
+//
+// Kural özeti:
+//   /users/{uid}         → Sadece oturum sahibi okur/yazar
+//   /pets/{petId}        → petId'si eşleşen partner kullanıcılar okur/yazar
+//   /pets/{petId}/messages → Aynı pet'e erişimi olan kullanıcılar mesaj atar
+//   /pets/{petId}/actions  → Aynı pet'e erişimi olan kullanıcılar yazar
+//   /graveyard/{docId}   → Sadece sahibi okur, sistem yazar (Cloud Function)
+//   /leaderboard         → Herkes okur, sadece backend yazar
+// =============================================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Yardımcı fonksiyonlar ──────────────────────────────────────────────
+
+    /** Kimlik doğrulaması yapılmış mı? */
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    /** İstek sahibi belirtilen uid mi? */
+    function isOwner(uid) {
+      return isAuth() && request.auth.uid == uid;
+    }
+
+    /**
+     * Kullanıcının belirtilen petId'ye erişimi var mı?
+     * users/{uid}.petId === petId ise erişim izni verilir.
+     */
+    function hasPetAccess(petId) {
+      return isAuth() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.petId == petId;
+    }
+
+    /** Sadece belirli alanların güncellendiğini doğrula */
+    function onlyUpdates(fields) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields);
+    }
+
+    // ── /users/{uid} ──────────────────────────────────────────────────────
+    match /users/{uid} {
+      // Sadece hesap sahibi kendi profilini okuyabilir/güncelleyebilir
+      allow read:   if isOwner(uid);
+      allow create: if isOwner(uid) && request.resource.data.keys().hasAll(['displayName', 'email', 'petId']);
+      allow update: if isOwner(uid);
+      allow delete: if false; // Hesap silme desteklenmiyor
+    }
+
+    // ── /pets/{petId} ─────────────────────────────────────────────────────
+    match /pets/{petId} {
+      // Pet'e erişimi olan kullanıcılar (max 2 partner) okuyup yazabilir
+      allow read:   if hasPetAccess(petId);
+      allow create: if isAuth();
+      allow update: if hasPetAccess(petId);
+      allow delete: if false;
+
+      // ── /pets/{petId}/messages ──────────────────────────────────────────
+      match /messages/{msgId} {
+        allow read:   if hasPetAccess(petId);
+        allow create: if hasPetAccess(petId)
+                      && request.resource.data.keys().hasAll(['text', 'senderId', 'senderName', 'createdAt'])
+                      && request.resource.data.senderId == request.auth.uid
+                      && request.resource.data.text.size() > 0
+                      && request.resource.data.text.size() <= 300;
+        allow update, delete: if false;
+      }
+
+      // ── /pets/{petId}/actions ───────────────────────────────────────────
+      match /actions/{actionId} {
+        allow read:   if hasPetAccess(petId);
+        allow create: if hasPetAccess(petId)
+                      && request.resource.data.userId == request.auth.uid;
+        allow update, delete: if false;
+      }
+    }
+
+    // ── /graveyard/{docId} ────────────────────────────────────────────────
+    match /graveyard/{docId} {
+      // Sadece kayıt sahibi okuyabilir
+      allow read:   if isAuth() && resource.data.ownerId == request.auth.uid;
+      // Uygulama tarafında yazılır (ownerId = uid kontrolü)
+      allow create: if isAuth()
+                    && request.resource.data.ownerId == request.auth.uid
+                    && request.resource.data.keys().hasAll(['name', 'age', 'level', 'deathReason', 'ownerId', 'diedAt']);
+      allow update, delete: if false;
+    }
+
+    // ── Diğer tüm dökümanlar ──────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
