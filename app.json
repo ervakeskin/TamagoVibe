@@ -41,6 +41,12 @@
           "color": "#C9A69E"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "78c35f1f-db6a-44ce-9d3a-4f2285dac9e8"
+      }
+    },
+    "owner": "ervakeskin"
   }
 }
