@@ -1,6 +1,6 @@
 // =============================================================================
 // src/screens/GraveyardScreen.jsx
-// Firestore graveyard koleksiyonunu gerçek zamanlı dinler
+// Yerel mezarlık kayıtlarını listeler
 // Ölen dostları lüks "Anıt Kartı" olarak listeler
 // =============================================================================
 
@@ -10,12 +10,10 @@ import {
   SafeAreaView, StatusBar, ActivityIndicator,
   RefreshControl,
 } from 'react-native';
-import {
-  collection, query, where,
-  orderBy, onSnapshot, limit,
-} from 'firebase/firestore';
-import { db } from '../api/firebaseConfig';
+import { subscribeGraveyard } from '../services/localStore';
+import { formatDateLong } from '../utils/time';
 
+import { formatAge } from '../utils/decay';
 const P = {
   cream:       '#FAF6F1',
   creamDeep:   '#F3EDE4',
@@ -33,6 +31,9 @@ const P = {
 // ─── Pet türü emoji tablosu ───────────────────────────────────────────────────
 const PET_EMOJI = {
   fox:    '🦊',
+  dog:    '🐕',
+  husky:  '🐺',
+  wolf:   '🐺',
   rabbit: '🐰',
   panda:  '🐼',
   cat:    '🐱',
@@ -40,12 +41,8 @@ const PET_EMOJI = {
 
 // ─── Anıt Kartı ───────────────────────────────────────────────────────────────
 const MemorialCard = memo(({ entry }) => {
-  const emoji = PET_EMOJI[entry.petType] ?? '🐾';
-  const diedDate = entry.diedAt?.toDate
-    ? entry.diedAt.toDate().toLocaleDateString('tr-TR', {
-        day: '2-digit', month: 'long', year: 'numeric',
-      })
-    : '—';
+  const emoji = PET_EMOJI[String(entry.petType ?? '').toLowerCase()] ?? '🐾';
+  const diedDate = formatDateLong(entry.diedAt);
 
   return (
     <View style={styles.card}>
@@ -69,7 +66,7 @@ const MemorialCard = memo(({ entry }) => {
 
       {/* İstatistik satırı */}
       <View style={styles.statsRow}>
-        <Stat icon="🕰️" label="Yaşı"     value={`${entry.age ?? 0} gün`} />
+        <Stat icon="🕰️" label="Yaşı"     value={formatAge(entry.age)} />
         <Stat icon="✨"  label="Toplam XP" value={entry.xp ?? 0} />
         <Stat icon="🏅"  label="Rozetler" value={entry.unlockedBadges?.length ?? 0} />
         <Stat icon="🍖"  label="Besleme"  value={entry.totalFeedings ?? 0} />
@@ -107,31 +104,16 @@ const GraveyardScreen = ({ route }) => {
   const [isLoading,  setIsLoading]  = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // ── Gerçek zamanlı Firestore dinleyicisi ──────────────────────────────────
   useEffect(() => {
     if (!userId) { setIsLoading(false); return; }
 
-    const q = query(
-      collection(db, 'graveyard'),
-      where('ownerId', '==', userId),
-      orderBy('diedAt', 'desc'),
-      limit(50),
-    );
+    const unsub = subscribeGraveyard(userId, (list) => {
+      setEntries(list);
+      setIsLoading(false);
+      setRefreshing(false);
+    });
 
-    const unsub = onSnapshot(q,
-      (snap) => {
-        setEntries(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-        setIsLoading(false);
-        setRefreshing(false);
-      },
-      (err) => {
-        console.error('[Graveyard]', err);
-        setIsLoading(false);
-        setRefreshing(false);
-      },
-    );
-
-    return () => unsub();
+    return unsub;
   }, [userId]);
 
   // ─────────────────────────────────────────────────────────────────────────

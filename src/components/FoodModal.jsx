@@ -4,6 +4,7 @@
 // =============================================================================
 
 import React, { useEffect, useRef, memo } from 'react';
+import { NATIVE_DRIVER } from '../utils/animation';
 import {
   Modal, View, Text, Pressable,
   Animated, StyleSheet, Vibration,
@@ -16,9 +17,9 @@ const FoodCard = memo(({ food, onSelect }) => {
   const scale = useRef(new Animated.Value(1)).current;
 
   const onPressIn  = () =>
-    Animated.spring(scale, { toValue: 0.93, friction: 5, useNativeDriver: true }).start();
+    Animated.spring(scale, { toValue: 0.93, friction: 5, useNativeDriver: NATIVE_DRIVER }).start();
   const onPressOut = () =>
-    Animated.spring(scale, { toValue: 1,    friction: 4, useNativeDriver: true }).start();
+    Animated.spring(scale, { toValue: 1,    friction: 4, useNativeDriver: NATIVE_DRIVER }).start();
 
   const handlePress = () => {
     Vibration.vibrate(30);
@@ -64,13 +65,13 @@ const FoodModal = ({ visible, onSelect, onClose }) => {
   useEffect(() => {
     if (visible) {
       Animated.parallel([
-        Animated.timing(fadeOp, { toValue: 1, duration: 220, useNativeDriver: true }),
-        Animated.spring(slideY,  { toValue: 0, friction: 8,   useNativeDriver: true }),
+        Animated.timing(fadeOp, { toValue: 1, duration: 220, useNativeDriver: NATIVE_DRIVER }),
+        Animated.spring(slideY,  { toValue: 0, friction: 8,   useNativeDriver: NATIVE_DRIVER }),
       ]).start();
     } else {
       Animated.parallel([
-        Animated.timing(fadeOp, { toValue: 0, duration: 160, useNativeDriver: true }),
-        Animated.timing(slideY,  { toValue: 400, duration: 200, useNativeDriver: true }),
+        Animated.timing(fadeOp, { toValue: 0, duration: 160, useNativeDriver: NATIVE_DRIVER }),
+        Animated.timing(slideY,  { toValue: 400, duration: 200, useNativeDriver: NATIVE_DRIVER }),
       ]).start();
     }
   }, [visible]);

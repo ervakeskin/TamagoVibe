@@ -1,30 +1,27 @@
 // =============================================================================
-// src/screens/SocialScreen.jsx
-// Partner ekleme ve yönetim ekranı
+// src/screens/SocialScreen.jsx — Yerel partner paneli + demo
 // =============================================================================
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TextInput, Pressable, FlatList,
   StyleSheet, SafeAreaView, StatusBar,
-  ActivityIndicator, Alert,
+  ActivityIndicator,
 } from 'react-native';
-import {
-  doc, getDoc, updateDoc, arrayUnion, onSnapshot,
-} from 'firebase/firestore';
-import { db } from '../api/firebaseConfig';
+import { listPartners, watchPartners, addPartnerByCode } from '../services/partnerService';
+import { logout } from '../services/authService';
+import { showAlert, confirmDialog } from '../utils/dialog';
+import { getErrorLog, clearErrorLog, formatErrorLog } from '../utils/logger';
 
 const P = {
   cream:       '#FAF6F1',
   creamDeep:   '#F3EDE4',
   creamBorder: 'rgba(201,166,158,0.22)',
   roseGold:    '#C9A69E',
-  roseLight:   '#F7D6D0',
-  mint:        '#B5EAD7',
   text:        '#3D2C2C',
   textSoft:    '#A08C89',
   white:       '#FFFFFF',
-  danger:      '#E8927C',
+  mint:        '#B5EAD7',
 };
 
 const card = (extra = {}) => ({
@@ -43,59 +40,62 @@ const card = (extra = {}) => ({
 const AVATAR_COLORS = ['#F7D6D0','#B5EAD7','#D8CCEF','#FFD6A5','#CAFFBF','#FFC8DD'];
 const avatarColor = (uid = '') => AVATAR_COLORS[uid.charCodeAt(0) % AVATAR_COLORS.length];
 
-// =============================================================================
 const SocialScreen = ({ route, navigation }) => {
-  const { petId, userId } = route.params ?? {};
+  const { petId, userId, displayName } = route.params ?? {};
 
-  const [partners,     setPartners]     = useState([]);
-  const [inviteCode,   setInviteCode]   = useState('');
-  const [myPetId,      setMyPetId]      = useState('');
-  const [loading,      setLoading]      = useState(true);
-  const [addLoading,   setAddLoading]   = useState(false);
+  const [partners,   setPartners]   = useState([]);
+  const [inviteCode, setInviteCode] = useState('');
+  const [myPetId,    setMyPetId]    = useState('');
+  const [loading,    setLoading]    = useState(true);
+  const [addLoading, setAddLoading] = useState(false);
+  const [logText,    setLogText]    = useState(null);
 
-  // ── Pet'in mevcut partnerlarını dinle ─────────────────────────────────────
   useEffect(() => {
-    if (!petId) return;
-    const unsub = onSnapshot(doc(db, 'pets', petId), async (snap) => {
-      if (!snap.exists()) { setLoading(false); return; }
-      const ids = (snap.data().partnerIds ?? []).filter((id) => id !== userId);
-      if (!ids.length) { setPartners([]); setLoading(false); return; }
-      try {
-        const snaps = await Promise.all(ids.map((id) => getDoc(doc(db, 'users', id))));
-        setPartners(snaps.filter((s) => s.exists()).map((s) => ({ uid: s.id, ...s.data() })));
-      } catch (e) { console.error(e); }
-      setLoading(false);
-    });
-    return () => unsub();
+    if (!petId || !userId) return;
+    const refresh = () => {
+      listPartners(petId, userId).then((list) => {
+        setPartners(list);
+        setLoading(false);
+      });
+    };
+    refresh();
+    return watchPartners(petId, userId, refresh);
   }, [petId, userId]);
 
-  // ── Kendi pet kodunu göster ───────────────────────────────────────────────
   useEffect(() => { setMyPetId(petId ?? ''); }, [petId]);
 
-  // ── Partner ekle ─────────────────────────────────────────────────────────
   const handleAdd = useCallback(async () => {
     const code = inviteCode.trim();
     if (!code) return;
     if (code === petId) {
-      Alert.alert('Hata', 'Kendi kodunu giremezsin 🙈'); return;
+      showAlert('Hata', 'Kendi kodunu giremezsin 🙈');
+      return;
     }
     setAddLoading(true);
     try {
-      // Diğer pet dökümanını bul
-      const otherSnap = await getDoc(doc(db, 'pets', code));
-      if (!otherSnap.exists()) {
-        Alert.alert('Bulunamadı', 'Bu pet kodu geçerli değil.'); return;
-      }
-      // Her iki pet'e userId'leri ekle
-      await updateDoc(doc(db, 'pets', petId),  { partnerIds: arrayUnion(otherSnap.data().ownerId) });
-      await updateDoc(doc(db, 'pets', code),   { partnerIds: arrayUnion(userId) });
+      await addPartnerByCode(code, petId, userId);
       setInviteCode('');
-      Alert.alert('✨ Harika!', 'Partner başarıyla eklendi!');
+      showAlert('Harika!', 'Partner eklendi!');
     } catch (e) {
-      console.error(e);
-      Alert.alert('Hata', 'Bir şeyler ters gitti.');
-    } finally { setAddLoading(false); }
+      showAlert('Bilgi', e.message ?? 'Gerçek eşleşme yakında.');
+    } finally {
+      setAddLoading(false);
+    }
   }, [inviteCode, petId, userId]);
+
+  const handleLogout = useCallback(() => {
+    confirmDialog('Çıkış', 'Hesabından çıkmak istiyor musun?', 'Çıkış', () => logout());
+  }, []);
+
+  const toggleLog = useCallback(async () => {
+    if (logText !== null) { setLogText(null); return; }
+    setLogText(formatErrorLog(await getErrorLog()));
+  }, [logText]);
+
+  const clearLog = useCallback(async () => {
+    await clearErrorLog();
+    setLogText(formatErrorLog([]));
+  }, []);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -106,7 +106,9 @@ const SocialScreen = ({ route, navigation }) => {
           <Text style={styles.backTxt}>‹</Text>
         </Pressable>
         <Text style={styles.headerTitle}>Sosyal Panel</Text>
-        <View style={{ width: 28 }} />
+        <Pressable onPress={handleLogout}>
+          <Text style={styles.logoutTxt}>Çıkış</Text>
+        </Pressable>
       </View>
       <View style={styles.line} />
 
@@ -117,18 +119,19 @@ const SocialScreen = ({ route, navigation }) => {
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <>
-            {/* Kendi kodu */}
             <View style={card({ padding: 18, marginBottom: 14 })}>
               <Text style={styles.sectionLabel}>SENİN PET KODUN</Text>
               <View style={styles.codeBox}>
                 <Text style={styles.codeText} selectable>{myPetId}</Text>
               </View>
-              <Text style={styles.codeHint}>Bu kodu arkadaşına gönder 🌸</Text>
+              <Text style={styles.codeHint}>İleride gerçek partner bu kodla eşleşecek</Text>
             </View>
 
-            {/* Partner ekle */}
             <View style={card({ padding: 18, marginBottom: 20 })}>
               <Text style={styles.sectionLabel}>PARTNER EKLE</Text>
+              <Text style={styles.demoNote}>
+                Şimdilik demo partner Elif ile sohbet edebilirsin. Gerçek eşleşme yakında.
+              </Text>
               <View style={styles.inputRow}>
                 <TextInput
                   style={styles.input}
@@ -151,6 +154,22 @@ const SocialScreen = ({ route, navigation }) => {
               </View>
             </View>
 
+            <View style={card({ padding: 14, marginBottom: 20 })}>
+              <Pressable onPress={toggleLog} accessibilityLabel="Hata günlüğü">
+                <Text style={styles.sectionLabel}>
+                  HATA GÜNLÜĞÜ {logText === null ? '▸' : '▾'}
+                </Text>
+              </Pressable>
+              {logText !== null && (
+                <>
+                  <Text style={styles.logTxt} selectable>{logText}</Text>
+                  <Pressable onPress={clearLog}>
+                    <Text style={styles.logoutTxt}>Temizle</Text>
+                  </Pressable>
+                </>
+              )}
+            </View>
+
             <Text style={styles.sectionLabel}>BAKICI DOSTLARIN ({partners.length})</Text>
           </>
         }
@@ -161,7 +180,6 @@ const SocialScreen = ({ route, navigation }) => {
               <View style={styles.emptyWrap}>
                 <Text style={styles.emptyEmoji}>🌱</Text>
                 <Text style={styles.emptyTxt}>Henüz kimse yok</Text>
-                <Text style={styles.emptySub}>Kodunu paylaşarak arkadaş ekle!</Text>
               </View>
             )
         }
@@ -173,7 +191,14 @@ const SocialScreen = ({ route, navigation }) => {
               </Text>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.partnerName}>{item.displayName ?? 'Bakıcı'}</Text>
+              <View style={styles.nameRow}>
+                <Text style={styles.partnerName}>{item.displayName ?? 'Bakıcı'}</Text>
+                {item.isDemo && (
+                  <View style={styles.demoBadge}>
+                    <Text style={styles.demoBadgeTxt}>Demo</Text>
+                  </View>
+                )}
+              </View>
               <Text style={styles.partnerSub}>Bakıcı Dostu 🐾</Text>
             </View>
             <Pressable
@@ -181,6 +206,7 @@ const SocialScreen = ({ route, navigation }) => {
               onPress={() => navigation.navigate('ChatDetail', {
                 petId,
                 userId,
+                displayName,
                 partnerId:          item.uid,
                 partnerDisplayName: item.displayName,
               })}
@@ -203,17 +229,21 @@ const styles = StyleSheet.create({
   },
   backTxt:     { fontSize: 28, color: P.roseGold, fontWeight: '300', lineHeight: 32 },
   headerTitle: { fontSize: 20, fontWeight: '800', color: P.text, fontStyle: 'italic' },
+  logoutTxt:   { fontSize: 13, color: P.textSoft, fontWeight: '600' },
+  logTxt:      { fontSize: 11, color: P.text, marginVertical: 8, lineHeight: 16 },
   line:        { height: 1, backgroundColor: P.creamBorder, marginHorizontal: 20 },
   list:        { padding: 20, paddingBottom: 40 },
   sectionLabel: {
     fontSize: 10, fontWeight: '700', color: P.textSoft,
     letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 10,
   },
+  demoNote: {
+    fontSize: 12, color: P.textSoft, lineHeight: 18, marginBottom: 12,
+  },
   codeBox: {
     backgroundColor: P.creamDeep, borderRadius: 12,
     padding: 14, alignItems: 'center',
-    borderWidth: 1, borderColor: P.creamBorder,
-    borderStyle: 'dashed',
+    borderWidth: 1, borderColor: P.creamBorder, borderStyle: 'dashed',
   },
   codeText: { fontSize: 14, fontWeight: '700', color: P.roseGold, letterSpacing: 1 },
   codeHint: { fontSize: 11, color: P.textSoft, marginTop: 8, textAlign: 'center' },
@@ -235,13 +265,17 @@ const styles = StyleSheet.create({
     marginRight: 12, borderWidth: 1.5, borderColor: P.creamBorder,
   },
   avatarTxt:   { fontSize: 16, fontWeight: '800', color: P.text },
+  nameRow:     { flexDirection: 'row', alignItems: 'center', gap: 6 },
   partnerName: { fontSize: 14, fontWeight: '700', color: P.text },
+  demoBadge: {
+    backgroundColor: P.mint, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6,
+  },
+  demoBadgeTxt: { fontSize: 9, fontWeight: '700', color: P.text },
   partnerSub:  { fontSize: 11, color: P.textSoft, marginTop: 2 },
   msgBtn:      { padding: 8 },
   emptyWrap:   { alignItems: 'center', paddingTop: 30 },
   emptyEmoji:  { fontSize: 40, marginBottom: 10 },
   emptyTxt:    { fontSize: 16, fontWeight: '700', color: P.text, fontStyle: 'italic' },
-  emptySub:    { fontSize: 12, color: P.textSoft, marginTop: 6 },
 });
 
 export default SocialScreen;

@@ -1,74 +1,75 @@
-🐾 TamagoVibe — Platinum Signature Edition
-Apple Dog Style | Sosyal Etkileşimli | Minimalist Lüks | Firebase Tabanlı
+# TamagoVibe
 
-TamagoVibe, iki partnerin aynı dijital evcil hayvana minimalist bir estetikle baktığı, gerçek zamanlı senkronize bir mobil deneyimdir.
+Tamagotchi'den ilham alan, 3D hayvanlı dijital evcil hayvan oyunu. Expo (React Native) ile yazıldı, hedef platform **Android**. İlk sürüm tek oyunculu ve tamamen cihazda çalışır: internet ya da sunucu gerekmez.
 
-🎨 Tasarım Felsefesi (The "Signature" Look)
-Görsel Stil: "Apple Dog" estetiği; el çizimi (hand-drawn), titrek hatlar ve suluboya dokusu.
+## Özellikler
 
-Renk Paleti: #FFFBF5 (Kağıt Beyazı), #FF4D6D (Pastel Pembe), #48CAE4 (Pastel Mavi).
+- **Yumurta ve doğum belgesi:** Hesap açınca yumurta kuluçkaya yatar, sallanır, çatlaklar belirir. Süre dolunca isim verip yumurtayı çatlatırsın. Çıkan hayvanın türü, **nadirliği** (Yaygın / Nadir / Efsanevi), doğum zamanı ve belge numarası bir doğum belgesinde gösterilir.
+- **4 hayvan türü (3D, animasyonlu):** Tilki ve Shiba (yaygın), Husky (nadir), Kurt (efsanevi). Ruh haline göre animasyon oynar, bakım eylemlerine tepki verir (yeme, oyun, dokunma, ilaç).
+- **Tamagotchi cihaz arayüzü:** Yumurta biçimli kabuk, LCD ekran, kalp göstergeleri ve fiziksel butonlar (Besle, Oyna, Uyut, İlaç).
+- **Gerçek zamanlı oyun:** Açlık, mutluluk ve enerji saatler içinde düşer (yaklaşık 8 saatte aç). Uygulama kapalıyken geçen süre açılışta hesaplanır. Kapalıyken pet ölmez, sağlık en az 10'a iner.
+- **Bakım:** 6 yemek, oyun, uyku, ilaç, dokunma. XP, seviye atlama, rozetler.
+- **Ölüm ve anılar:** Pet ölürse Anılar (mezarlık) sekmesine kaydedilir, yeni hayat başlatılır.
+- **Demo partner Elif:** Mesajlaşma ve hızlı mesajlar. Gerçek partner eşleşmesi sonraki sürümde.
+- **Bildirimler:** Açlık ve kritik sağlık için yerel hatırlatıcılar (cihazda).
+- **Hata günlüğü:** Sosyal Panel içinde, son 100 hata saklanır.
 
-Lüks Detaylar: Minimalist Rose Gold aksesuarlar ve inci dokunuşları.
+## Çalıştırma
 
-📁 Proje Yapısı
-Plaintext
-TamagoVibe/
-├── App.js                   # Navigasyon (Auth Guard + Stack/Tab)
-└── src/
-    ├── api/
-    │   ├── firebaseConfig.js    # Firestore & Auth Bağlantısı
-    │   └── notificationService.js
-    ├── hooks/
-    │   └── useSocialPet.js      # Platinum Oyun Motoru (Hatch/Death Mantığı)
-    ├── screens/
-    │   ├── PetScreen.jsx        # Lüks Dashboard (Ana Ekran)
-    │   ├── SocialScreen.jsx     # Arkadaş Ekleme & Sosyal Panel
-    │   ├── ChatListScreen.jsx   # WhatsApp Tarzı Mesaj Listesi
-    │   ├── ChatDetailScreen.jsx # Bireysel DM Odası
-    │   └── GraveyardScreen.jsx  # Anıt Salonu (Mezarlık)
-    ├── components/
-    │   ├── PetAvatar.jsx        # Karakter Gösterimi (Glow & Rose Gold)
-    │   ├── StatBar.jsx          # Pastel İlerleme Çubukları
-    │   └── LevelUpModal.jsx     # Seviye Atlama Kutlaması
-    ├── constants/
-    │   └── gameConfig.js        # XP, Renk Paleti ve Hayvan Türleri
-    └── assets/
-        └── images/              # Leonardo.ai El Çizimi Görselleri
-🎮 Platinum Özellikler
-💬 Bireysel DM: Grup odası yerine partnerler arası WhatsApp tarzı özel mesajlaşma.
-
-🥚 Garantili Hatch: Date.now() bazlı, cihazlar arası senkronize 2 dakikalık kuluçka süreci.
-
-💀 Yaşam Döngüsü: Ölen hayvanlar için lüks veda ekranı ve anında "Yeni Hayat Başlat" butonu.
-
-🤝 Sosyal Panel: Partner kodu kopyalama ve anında eşleşme desteği.
-
-🏆 XP & Level: level × 100 dinamik eşik ve konfeti animasyonları.
-
-🔑 Firestore Veri Modeli
-/users/{uid}: Profil bilgileri, bağlı petId ve toplam miras (legacyCount).
-
-/pets/{petId}: Açlık, Mutluluk, Sağlık, XP, isDead durumu ve partnerIds.
-
-/pets/{petId}/messages: Bireysel DM kayıtları (senderId, receiverId).
-
-/graveyard/{id}: Ölen dostların anıt bilgileri.
-
-🚀 Kurulum ve Çalıştırma
-Bash
-# 1. Bağımlılıkları Yükle
+```bash
 npm install
+npm start          # Expo; telefonda Expo Go, web için "w"
+npm test           # birim testleri (jest)
+```
 
-# 2. Gerekli Paketleri Kur
-npx expo install expo-notifications expo-device
-npm install firebase @react-native-async-storage/async-storage @react-navigation/native @react-navigation/native-stack @react-navigation/bottom-tabs react-native-screens react-native-safe-area-context
+`.npmrc` içinde `legacy-peer-deps` açıktır, `npm install` bu yüzden ERESOLVE hatası vermez.
 
-# 3. Firestore Kurallarını Yayınla
-firebase deploy --only firestore:rules
+## Oyun hızını ayarlama
 
-# 4. Uygulamayı Başlat
-npx expo start
-🚨 Önemli Notlar
-Uygulamanın çalışması için Leonardo.ai'den üretilen görsellerin src/assets/images altına ilgili hayvan isimleriyle (örneğin rabbit.png) eklenmesi gerekir.
+Tüm oranlar [`src/constants/gameConfig.js`](src/constants/gameConfig.js) içinde:
 
-Siyah ekran hatalarını önlemek için isLoading durumları PetScreen içinde kontrol edilmiştir.
+| Ayar | Anlamı |
+|------|--------|
+| `DECAY_PER_HOUR` | Saatlik açlık / mutluluk / enerji düşüşü |
+| `GAME_SPEED` | Test için hız çarpanı (60 = 1 dakikada 1 saat) |
+| `HATCH_TIME_MINUTES` | Yumurta süresi (geliştirmede 1 dk, yayında 10 dk) |
+| `PET_TYPES` | Tür, nadirlik ve çıkma şansı (`weight`) |
+
+## Proje yapısı
+
+```
+App.js                      # Navigasyon, oturum
+src/
+├── components/
+│   ├── DeviceFrame.jsx     # Tamagotchi kabuğu, LCD, butonlar
+│   ├── EggHatch.jsx        # Yumurta, çatlama animasyonu, doğum belgesi
+│   ├── PetAvatar.jsx       # 3D sahne, döndürme, dokunma
+│   ├── PetModel3D.jsx      # Three.js modeli, kamera, animasyon klipleri
+│   └── AuthForm.jsx        # Giriş / kayıt ortak arayüzü
+├── constants/              # theme.js (tek tasarım sistemi), gameConfig.js, avatarConfig.js
+├── hooks/useSocialPet.js   # Oyun döngüsü ve eylemler
+├── screens/                # Pet, Sohbet, Anılar, Sosyal, Giriş, Kayıt
+├── services/               # authService, localStore (AsyncStorage), partnerService
+└── utils/                  # decay.js (saf oyun hesabı), logger.js, dialog.js
+assets/animals/             # 3D modeller (Quaternius, CC0)
+__tests__/                  # jest testleri
+docs/                       # durum, hata günlüğü, test raporu, değişiklik kaydı
+```
+
+## Dokümanlar
+
+- [docs/PROJE_DURUMU.md](docs/PROJE_DURUMU.md): yapılanlar, kalanlar, yayın yol haritası
+- [docs/CHANGELOG.md](docs/CHANGELOG.md): tarihli değişiklik kaydı
+- [docs/ERROR_LOG.md](docs/ERROR_LOG.md): bulunan hatalar, kök neden, çözüm
+- [docs/TEST_RAPORU.md](docs/TEST_RAPORU.md): son test sonuçları
+- [DEPLOY_CHECKLIST.md](DEPLOY_CHECKLIST.md): mağaza yayın listesi
+
+## Önemli notlar
+
+- Hesaplar ve oyun verisi yalnızca cihazdadır. Şifreler **şu an düz metin** saklanıyor (yayından önce düzeltilecek, bkz. PROJE_DURUMU).
+- İki cihaz arası senkron yoktur. Gerçek partner özelliği ayrı bir backend ile eklenecek.
+- 3D/WebGL ve bildirimler Android cihazda ayrıca doğrulanmalıdır (web testi bunları kapsamaz).
+
+## Krediler ve lisans
+
+3D hayvan modelleri: [Quaternius](https://quaternius.com/) "Ultimate Animated Animal Pack", **CC0 1.0** (kamu malı). Lisans metni `assets/animals/LICENSE-Quaternius-CC0.txt` dosyasındadır.

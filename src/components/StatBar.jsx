@@ -5,6 +5,7 @@
 
 import React, { useEffect, useRef, memo } from 'react';
 import { View, Text, Animated, StyleSheet } from 'react-native';
+import { NATIVE_DRIVER } from '../utils/animation';
 
 const StatBar = memo(({ label, value, maxValue = 100, color = '#C9A69E', icon = '✨' }) => {
   const animWidth  = useRef(new Animated.Value(value / maxValue)).current;
@@ -26,8 +27,8 @@ const StatBar = memo(({ label, value, maxValue = 100, color = '#C9A69E', icon = 
     if (isCritical) {
       const loop = Animated.loop(
         Animated.sequence([
-          Animated.timing(critPulse, { toValue: 0.35, duration: 500, useNativeDriver: true }),
-          Animated.timing(critPulse, { toValue: 1.0,  duration: 500, useNativeDriver: true }),
+          Animated.timing(critPulse, { toValue: 0.35, duration: 500, useNativeDriver: NATIVE_DRIVER }),
+          Animated.timing(critPulse, { toValue: 1.0,  duration: 500, useNativeDriver: NATIVE_DRIVER }),
         ])
       );
       loop.start();

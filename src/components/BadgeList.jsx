@@ -4,6 +4,7 @@
 // =============================================================================
 
 import React, { useRef, useEffect, memo } from 'react';
+import { NATIVE_DRIVER } from '../utils/animation';
 import { View, Text, Animated, ScrollView, StyleSheet } from 'react-native';
 import { COLORS, FONTS, SPACING, RADIUS } from '../constants/theme';
 import { ACHIEVEMENTS } from '../constants/gameConfig';
@@ -17,11 +18,11 @@ const BadgeCard = memo(({ achievement, unlocked, isNew = false }) => {
     if (isNew) {
       Animated.loop(
         Animated.sequence([
-          Animated.timing(glowAnim,  { toValue: 1,   duration: 600, useNativeDriver: true }),
-          Animated.timing(glowAnim,  { toValue: 0.3, duration: 600, useNativeDriver: true }),
+          Animated.timing(glowAnim,  { toValue: 1,   duration: 600, useNativeDriver: NATIVE_DRIVER }),
+          Animated.timing(glowAnim,  { toValue: 0.3, duration: 600, useNativeDriver: NATIVE_DRIVER }),
         ])
       ).start();
-      Animated.spring(scaleAnim, { toValue: 1.06, friction: 4, useNativeDriver: true }).start();
+      Animated.spring(scaleAnim, { toValue: 1.06, friction: 4, useNativeDriver: NATIVE_DRIVER }).start();
     }
   }, [isNew]);
 

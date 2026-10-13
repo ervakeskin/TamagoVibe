@@ -4,6 +4,7 @@
 // =============================================================================
 
 import React, { useRef, memo } from 'react';
+import { NATIVE_DRIVER } from '../utils/animation';
 import { Animated, Pressable, Text, StyleSheet, Vibration } from 'react-native';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS, VIBRATION as VIB } from '../constants/theme';
 
@@ -18,11 +19,11 @@ const ActionButton = memo(({
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
-    Animated.spring(scaleAnim, { toValue: 0.87, friction: 5, useNativeDriver: true }).start();
+    Animated.spring(scaleAnim, { toValue: 0.87, friction: 5, useNativeDriver: NATIVE_DRIVER }).start();
   };
 
   const handlePressOut = () => {
-    Animated.spring(scaleAnim, { toValue: 1, friction: 4, tension: 60, useNativeDriver: true }).start();
+    Animated.spring(scaleAnim, { toValue: 1, friction: 4, tension: 60, useNativeDriver: NATIVE_DRIVER }).start();
   };
 
   const handlePress = () => {

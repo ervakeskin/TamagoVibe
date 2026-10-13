@@ -1,57 +1,43 @@
 // =============================================================================
-// src/hooks/useSocialPet.js — v5
-// • Otomatik mood takibi: hunger < 30 → SAD, > 70 → HAPPY
-// • feed(foodType) → stats günceller, modal kapanma sinyali verir
-// • Firestore realtime sync (onSnapshot)
-// • Hatch, Death → Graveyard → Rebirth akışı
+// src/hooks/useSocialPet.js — Yerel depolama (AsyncStorage) + gerçek zamanlı döngü
 // =============================================================================
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Vibration } from 'react-native';
+import { Vibration, AppState } from 'react-native';
 import {
-  doc, onSnapshot, updateDoc, addDoc,
-  collection, serverTimestamp, increment,
-} from 'firebase/firestore';
-import { db }                   from '../api/firebaseConfig';
+  subscribePet,
+  savePet,
+  ensurePet,
+  addGraveyardEntry,
+  incrementLegacy,
+} from '../services/localStore';
 import {
   INITIAL_PET_STATE,
   FOOD_TYPES,
   VIBRATION,
+  TICK_MS,
+  DECAY_PER_HOUR,
   deriveDeathReason,
   deriveLevelFromXp,
   xpProgressInLevel,
+  pickPetType,
   ACHIEVEMENTS,
 } from '../constants/gameConfig';
+import { clamp, deriveMood, applyElapsed } from '../utils/decay';
+import { logError } from '../utils/logger';
+import {
+  notifyHunger,
+  notifyCriticalHealth,
+  notifyPetDeath,
+  notifyLevelUp,
+  scheduleReminder,
+  cancelReminders,
+} from '../api/notificationService';
 
-// ─── Sabitler ────────────────────────────────────────────────────────────────
-const TICK_MS = 5000; // 5 saniyede bir stat düşer
-
-// ─── Mood otomatik türetme ────────────────────────────────────────────────────
-// Kural önceliği (üstteki kazanır):
-//   DEAD > SICK > SLEEPING > TIRED > HUNGRY > SAD > HAPPY > NEUTRAL
-const deriveMood = (s) => {
-  if (s.isDead)               return 'DEAD';
-  if (s.isSick)               return 'SICK';
-  if (s.isSleeping)           return 'SLEEPING';
-  if ((s.energy    ?? 100) < 20) return 'TIRED';
-  if ((s.hunger    ?? 100) < 30) return 'HUNGRY';   // %30 altı → HUNGRY/SAD
-  if ((s.happiness ?? 100) < 30) return 'SAD';
-  if (
-    (s.hunger    ?? 100) > 70 &&
-    (s.happiness ?? 100) > 70 &&
-    (s.energy    ?? 100) > 50
-  )                           return 'HAPPY';
-  return 'NEUTRAL';
-};
-
-// ─── Rozet kontrolü ──────────────────────────────────────────────────────────
 const checkAchievements = (pet, ctx = {}) =>
   ACHIEVEMENTS
     .filter((a) => !(pet.unlockedBadges ?? []).includes(a.id) && a.check(pet, ctx))
     .map((a) => a.id);
-
-// ─── Yardımcılar ─────────────────────────────────────────────────────────────
-const clamp = (v, min = 0, max = 100) => Math.min(max, Math.max(min, v));
 
 const updateFoodStats = (prev, foodType) => {
   const counts   = { ...(prev._foodCounts ?? {}), [foodType]: ((prev._foodCounts ?? {})[foodType] ?? 0) + 1 };
@@ -59,7 +45,20 @@ const updateFoodStats = (prev, foodType) => {
   return { _foodCounts: counts, favoriteFood: favorite };
 };
 
-// =============================================================================
+/** Uygulama arka plana alınınca kurulacak hatırlatıcılar */
+const scheduleBackgroundReminders = (pet) => {
+  if (!pet?.name || pet.isDead) return;
+  const awakeHunger = DECAY_PER_HOUR.hunger * (pet.isSleeping ? DECAY_PER_HOUR.sleepHungerMul : 1);
+  const hoursToHungry = ((pet.hunger ?? 100) - 20) / awakeHunger;
+  if (hoursToHungry > 0) {
+    scheduleReminder('Acıktı!', `${pet.name} acıkmaya başladı 🍖`, hoursToHungry * 3600, 'hunger');
+  }
+  const hoursToStarve = ((pet.hunger ?? 100) - 5) / awakeHunger;
+  if (hoursToStarve > 0) {
+    scheduleReminder('Kritik Durum!', `${pet.name}'nin sağlığı tehlikede! 🌡️`, hoursToStarve * 3600, 'critical');
+  }
+};
+
 export const useSocialPet = ({ petId, userId, displayName = 'Oyuncu' }) => {
   const [pet,          setPet]          = useState(null);
   const [isLoading,    setIsLoading]    = useState(true);
@@ -68,123 +67,35 @@ export const useSocialPet = ({ petId, userId, displayName = 'Oyuncu' }) => {
   const [showRebirth,  setShowRebirth]  = useState(false);
   const [error,        setError]        = useState(null);
 
-  const tickRef    = useRef(null);
-  const petDocRef  = useRef(null);
-  const localPet   = useRef(null);  // tick için en güncel kopya
-  const notifLock  = useRef({ health: false, hunger: false });
+  const tickRef      = useRef(null);
+  const localPet     = useRef(null);
+  const deathHandled = useRef(false);
+  const caughtUp     = useRef(false);
+  const warned       = useRef({ hunger: false, health: false });
 
-  // ── Firestore ref ────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (petId) petDocRef.current = doc(db, 'pets', petId);
-  }, [petId]);
-
-  // ── onSnapshot ──────────────────────────────────────────────────────────
-  useEffect(() => {
+  const persist = useCallback(async (updates, { action = false } = {}) => {
     if (!petId) return;
-
-    const ref   = doc(db, 'pets', petId);
-    const unsub = onSnapshot(ref,
-      async (snap) => {
-        if (!snap.exists()) {
-          // İlk kez oluştur
-          const { setDoc } = await import('firebase/firestore');
-          await setDoc(ref, { ...INITIAL_PET_STATE, createdAt: serverTimestamp() });
-          return;
-        }
-        const data = { ...INITIAL_PET_STATE, ...snap.data() };
-        // Mood'u otomatik türet (Firestore'daki ham veriden)
-        data.mood = deriveMood(data);
-        setPet(data);
-        localPet.current = data;
-
-        if (data.isDead) await handleDeath(data);
-        setIsLoading(false);
-      },
-      (err) => {
-        console.error('[useSocialPet] snapshot:', err);
-        setError(err.message);
-        setIsLoading(false);
-      }
-    );
-    return () => unsub();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [petId]);
-
-  // ── Firestore'a yaz ──────────────────────────────────────────────────────
-  const sync = useCallback(async (updates) => {
-    if (!petDocRef.current) return;
+    const merged = {
+      ...localPet.current,
+      ...updates,
+      lastActionBy:    userId,
+      lastPartnerName: displayName,
+      updatedAt:       Date.now(),
+      ...(action ? { lastActionAt: Date.now() } : {}),
+    };
+    localPet.current = merged;
     try {
-      await updateDoc(petDocRef.current, {
-        ...updates,
-        lastActionBy:    userId,
-        lastPartnerName: displayName,
-        updatedAt:       serverTimestamp(),
-      });
-    } catch (e) { console.error('[useSocialPet] sync:', e); }
-  }, [userId, displayName]);
+      await savePet(petId, merged);
+    } catch (e) { logError('useSocialPet.persist', e); }
+  }, [petId, userId, displayName]);
 
-  // ── XP + level-up ────────────────────────────────────────────────────────
-  const applyXp = useCallback(async (current, gained, ctx = {}) => {
-    const newXp    = (current.xp ?? 0) + gained;
-    const newLevel = deriveLevelFromXp(newXp);
-
-    if (newLevel > (current.level ?? 1)) {
-      Vibration.vibrate(VIBRATION.levelUp);
-      setTimeout(() => setLevelUpData({ level: newLevel }), 60);
-    }
-
-    const draft      = { ...current, xp: newXp, level: newLevel };
-    const unlocked   = checkAchievements(draft, ctx);
-    if (unlocked.length) {
-      setTimeout(() => setNewBadges(unlocked), 100);
-      return { xp: newXp, level: newLevel, unlockedBadges: [...(current.unlockedBadges ?? []), ...unlocked] };
-    }
-    return { xp: newXp, level: newLevel };
-  }, []);
-
-  // ── Tick ─────────────────────────────────────────────────────────────────
-  const runTick = useCallback(async () => {
-    const prev = localPet.current;
-    if (!prev || prev.isDead) return;
-
-    let next;
-    if (prev.isSleeping) {
-      next = { ...prev, energy: clamp(prev.energy + 8), age: (prev.age ?? 0) + 1 };
-    } else {
-      const newHunger    = clamp((prev.hunger    ?? 100) - 4);
-      const newHappiness = clamp((prev.happiness ?? 100) - 3);
-      const newEnergy    = clamp((prev.energy    ?? 100) - 3);
-      let   newHealth    = prev.health ?? 100;
-      if (newHunger < 10 || newHappiness < 10) newHealth = clamp(newHealth - 6);
-
-      next = {
-        ...prev,
-        hunger: newHunger, happiness: newHappiness,
-        energy: newEnergy, health:    newHealth,
-        isSick: newHealth < 30,
-        isDead: newHealth <= 0,
-        age:    (prev.age ?? 0) + 1,
-      };
-    }
-
-    // Mood otomatik güncelle
-    next.mood = deriveMood(next);
-    await sync(next);
-  }, [sync]);
-
-  useEffect(() => {
-    if (isLoading || !petId) return;
-    tickRef.current = setInterval(runTick, TICK_MS);
-    return () => clearInterval(tickRef.current);
-  }, [isLoading, petId, runTick]);
-
-  // ── Ölüm → Graveyard ─────────────────────────────────────────────────────
   const handleDeath = useCallback(async (dead) => {
-    if (!petId || !userId) return;
+    if (!petId || !userId || dead.graveRecorded) return;   // aynı ölüm tek kez kaydedilir
     Vibration.vibrate(VIBRATION.death);
+    notifyPetDeath(dead.name || 'Dostumuz');
     try {
-      await addDoc(collection(db, 'graveyard'), {
-        name:           dead.name     ?? 'İsimsiz',
+      await addGraveyardEntry({
+        name:           dead.name     || 'İsimsiz',
         age:            dead.age      ?? 0,
         level:          dead.level    ?? 1,
         xp:             dead.xp       ?? 0,
@@ -195,102 +106,178 @@ export const useSocialPet = ({ petId, userId, displayName = 'Oyuncu' }) => {
         unlockedBadges: dead.unlockedBadges ?? [],
         ownerId:        userId,
         petId,
-        diedAt:         serverTimestamp(),
       });
-      await updateDoc(doc(db, 'users', userId), { legacyCount: increment(1) });
-    } catch (e) { console.error('[useSocialPet] graveyard:', e); }
+      await incrementLegacy(userId);
+      await persist({ graveRecorded: true });
+    } catch (e) { logError('useSocialPet.graveyard', e); }
     setTimeout(() => setShowRebirth(true), 1500);
-  }, [petId, userId]);
+  }, [petId, userId, persist]);
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // Aksiyonlar
-  // ═══════════════════════════════════════════════════════════════════════════
+  /** Son kayıttan bu yana geçen süreyi uygula (ekran açıkken ve uygulama kapalıyken) */
+  const catchUp = useCallback(async () => {
+    const prev = localPet.current;
+    if (!prev || prev.isDead || !prev.name) return;   // yumurta / ölü: düşüş yok
 
-  // ── Besle ─────────────────────────────────────────────────────────────────
+    const now  = Date.now();
+    const last = prev.lastTickAt ?? prev.updatedAt ?? now;
+    const next = applyElapsed(prev, now - last);
+    next.lastTickAt = now;
+
+    // Uyarı bildirimleri (eşik başına bir kez)
+    if (next.hunger < 20 && !warned.current.hunger) {
+      warned.current.hunger = true;
+      notifyHunger(next.name);
+    } else if (next.hunger >= 30) warned.current.hunger = false;
+    if (next.health < 30 && !warned.current.health) {
+      warned.current.health = true;
+      notifyCriticalHealth(next.name);
+    } else if (next.health >= 50) warned.current.health = false;
+
+    await persist(next);
+  }, [persist]);
+
+  useEffect(() => {
+    if (!petId) return undefined;
+    deathHandled.current = false;
+    caughtUp.current = false;
+    setIsLoading(true);
+    setError(null);
+
+    ensurePet(petId, userId).catch((e) => {
+      logError('useSocialPet.ensurePet', e);
+      setError(e.message ?? 'Pet yüklenemedi');
+      setIsLoading(false);
+    });
+
+    const unsub = subscribePet(petId, async (raw) => {
+      const data = { ...INITIAL_PET_STATE, ...raw };
+      data.mood = deriveMood(data);
+      setPet(data);
+      localPet.current = data;
+      setIsLoading(false);
+
+      if (!caughtUp.current) {            // açılışta kapalıyken geçen süreyi uygula
+        caughtUp.current = true;
+        await catchUp();
+        return;
+      }
+      if (data.isDead && !deathHandled.current) {
+        deathHandled.current = true;
+        await handleDeath(data);
+      }
+    });
+
+    const loadTimeout = setTimeout(() => setIsLoading(false), 10000);
+
+    return () => {
+      clearTimeout(loadTimeout);
+      unsub();
+    };
+  }, [petId, userId, handleDeath, catchUp]);
+
+  // ── Gerçek zamanlı tick + arka plana geçiş / geri dönüş ────────────────────
+  useEffect(() => {
+    if (isLoading || !petId) return undefined;
+    tickRef.current = setInterval(catchUp, TICK_MS);
+
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        cancelReminders();
+        catchUp();
+      } else {
+        scheduleBackgroundReminders(localPet.current);
+      }
+    });
+
+    return () => {
+      clearInterval(tickRef.current);
+      sub?.remove?.();
+    };
+  }, [isLoading, petId, catchUp]);
+
+  const applyXp = useCallback(async (current, gained, ctx = {}) => {
+    const newXp    = (current.xp ?? 0) + gained;
+    const newLevel = deriveLevelFromXp(newXp);
+
+    if (newLevel > (current.level ?? 1)) {
+      Vibration.vibrate(VIBRATION.levelUp);
+      notifyLevelUp(current.name || 'Dostumuz', newLevel);
+      setTimeout(() => setLevelUpData({ level: newLevel }), 60);
+    }
+
+    const draft    = { ...current, xp: newXp, level: newLevel };
+    const unlocked = checkAchievements(draft, ctx);
+    if (unlocked.length) {
+      setTimeout(() => setNewBadges(unlocked), 100);
+      return { xp: newXp, level: newLevel, unlockedBadges: [...(current.unlockedBadges ?? []), ...unlocked] };
+    }
+    return { xp: newXp, level: newLevel };
+  }, []);
+
   const feed = useCallback(async (foodType = 'meal') => {
     const prev = localPet.current;
     if (!prev || prev.isDead || prev.isSleeping) return;
-    Vibration.vibrate(VIBRATION.action ?? [0, 25, 50, 25]);
-
     const food = FOOD_TYPES[foodType];
     if (!food) return;
+    Vibration.vibrate(VIBRATION.action);
 
-    const newFeedings  = (prev.totalFeedings ?? 0) + 1;
-    const newHunger    = clamp((prev.hunger    ?? 100) + food.hunger);
-    const newHappiness = clamp((prev.happiness ?? 100) + (food.happiness ?? 3));
-    const newHealth    = clamp((prev.health    ?? 100) + (food.health    ?? 0));
-    const foodStats    = updateFoodStats(prev, foodType);
-    const xpPatch      = await applyXp(
+    const newFeedings = (prev.totalFeedings ?? 0) + 1;
+    const xpPatch = await applyXp(
       { ...prev, totalFeedings: newFeedings },
       food.xp,
-      { feedHour: new Date().getHours() }
+      { feedHour: new Date().getHours() },
     );
 
     const next = {
       ...prev,
-      hunger:        newHunger,
-      happiness:     newHappiness,
-      health:        newHealth,
+      hunger:        clamp((prev.hunger    ?? 100) + food.hunger),
+      happiness:     clamp((prev.happiness ?? 100) + (food.happiness ?? 3)),
+      health:        clamp((prev.health    ?? 100) + (food.health    ?? 0)),
       totalFeedings: newFeedings,
       lastFed:       foodType,
       lastActionType:'feed',
-      ...foodStats,
+      ...updateFoodStats(prev, foodType),
       ...xpPatch,
     };
     next.mood = deriveMood(next);
-    await sync(next);
+    await persist(next, { action: true });
+  }, [applyXp, persist]);
 
-    // Eylem logu
-    addDoc(collection(db, 'pets', petId, 'actions'), {
-      type: 'feed', userId, foodType, createdAt: serverTimestamp(),
-    }).catch(() => {});
-  }, [applyXp, sync, petId, userId]);
-
-  // ── Oyna ──────────────────────────────────────────────────────────────────
   const play = useCallback(async () => {
     const prev = localPet.current;
     if (!prev || prev.isDead || prev.isSleeping || (prev.energy ?? 100) < 10) return;
-    Vibration.vibrate(VIBRATION.action ?? [0, 25, 50, 25]);
+    Vibration.vibrate(VIBRATION.action);
 
-    const newHappiness = clamp((prev.happiness ?? 100) + 25);
-    const xpPatch      = await applyXp(prev, 35);
+    const xpPatch = await applyXp(prev, 35);
     const next = {
       ...prev,
-      happiness: newHappiness,
-      energy:    clamp((prev.energy ?? 100) - 20),
-      hunger:    clamp((prev.hunger ?? 100) - 12),
+      happiness: clamp((prev.happiness ?? 100) + 25),
+      energy:    clamp((prev.energy ?? 100) - 15),
+      hunger:    clamp((prev.hunger ?? 100) - 8),
       lastActionType: 'play',
       ...xpPatch,
     };
     next.mood = deriveMood(next);
-    await sync(next);
-  }, [applyXp, sync]);
+    await persist(next, { action: true });
+  }, [applyXp, persist]);
 
-  // ── Uyut/Uyandır ──────────────────────────────────────────────────────────
   const sleep = useCallback(async () => {
     const prev = localPet.current;
     if (!prev || prev.isDead) return;
-    Vibration.vibrate(VIBRATION.button ?? 10);
+    Vibration.vibrate(VIBRATION.button);
 
-    const isSleeping = !prev.isSleeping;
-    const next = {
-      ...prev,
-      isSleeping,
-      energy: isSleeping ? clamp((prev.energy ?? 100) + 15) : (prev.energy ?? 100),
-      lastActionType: 'sleep',
-    };
+    const next = { ...prev, isSleeping: !prev.isSleeping, lastActionType: 'sleep' };
     next.mood = deriveMood(next);
-    await sync(next);
-  }, [sync]);
+    await persist(next, { action: true });
+  }, [persist]);
 
-  // ── İyileştir ─────────────────────────────────────────────────────────────
   const heal = useCallback(async () => {
     const prev = localPet.current;
     if (!prev || !prev.isSick || prev.isDead) return;
-    Vibration.vibrate(VIBRATION.action ?? [0, 25, 50, 25]);
+    Vibration.vibrate(VIBRATION.action);
 
     const newHealings = (prev.totalHealings ?? 0) + 1;
-    const xpPatch     = await applyXp({ ...prev, totalHealings: newHealings }, 15);
+    const xpPatch = await applyXp({ ...prev, totalHealings: newHealings }, 15);
     const next = {
       ...prev,
       health:        clamp((prev.health ?? 0) + 35),
@@ -300,10 +287,9 @@ export const useSocialPet = ({ petId, userId, displayName = 'Oyuncu' }) => {
       ...xpPatch,
     };
     next.mood = deriveMood(next);
-    await sync(next);
-  }, [applyXp, sync]);
+    await persist(next, { action: true });
+  }, [applyXp, persist]);
 
-  // ── Dokunma (+5 mutluluk) ─────────────────────────────────────────────────
   const touchPet = useCallback(async () => {
     const prev = localPet.current;
     if (!prev || prev.isDead || prev.isSleeping) return;
@@ -314,38 +300,42 @@ export const useSocialPet = ({ petId, userId, displayName = 'Oyuncu' }) => {
       lastActionType: 'touch',
     };
     next.mood = deriveMood(next);
-    await sync(next);
-  }, [sync]);
+    await persist(next, { action: true });
+  }, [persist]);
 
-  // ── Yeni Hayat Başlat ─────────────────────────────────────────────────────
   const startNewLife = useCallback(async () => {
-    if (!petDocRef.current) return;
-    Vibration.vibrate(VIBRATION.rebirth ?? 30);
+    if (!petId) return;
+    Vibration.vibrate(VIBRATION.rebirth);
     const legacyCount = (localPet.current?.legacyCount ?? 0) + 1;
+    deathHandled.current = false;
+    warned.current = { hunger: false, health: false };
     try {
-      await updateDoc(petDocRef.current, {
+      await persist({
         ...INITIAL_PET_STATE,
         name:           '',
+        petType:        pickPetType(),
         isDead:         false,
         hatchStartedAt: Date.now(),
+        bornAt:         null,
+        lastTickAt:     null,
         legacyCount,
-        updatedAt:      serverTimestamp(),
+        ownerId:        userId,
+        partnerIds:     localPet.current?.partnerIds ?? [],
       });
       setShowRebirth(false);
-    } catch (e) { console.error('[useSocialPet] startNewLife:', e); }
-  }, []);
+    } catch (e) { logError('useSocialPet.startNewLife', e); }
+  }, [petId, userId, persist]);
 
-  // ── Yumurtayı Çatlat ─────────────────────────────────────────────────────
   const hatchPet = useCallback(async (name) => {
-    if (!name?.trim() || !petDocRef.current) return;
-    const types    = ['FOX', 'CAT', 'PANDA', 'RABBIT', 'DOG', 'KOALA'];
-    const petType  = types[Math.floor(Math.random() * types.length)];
-    Vibration.vibrate(VIBRATION.levelUp ?? [0, 50, 20, 50]);
+    if (!name?.trim() || !petId) return;
+    Vibration.vibrate(VIBRATION.levelUp);
 
-    await updateDoc(petDocRef.current, {
+    await persist({
       name:           name.trim(),
-      petType,
+      petType:        localPet.current?.petType ?? pickPetType(),
       hatchStartedAt: null,
+      bornAt:         Date.now(),
+      lastTickAt:     Date.now(),
       hunger:         100,
       happiness:      100,
       energy:         100,
@@ -353,11 +343,9 @@ export const useSocialPet = ({ petId, userId, displayName = 'Oyuncu' }) => {
       isDead:         false,
       isSick:         false,
       mood:           'HAPPY',
-      updatedAt:      serverTimestamp(),
     });
-  }, []);
+  }, [petId, persist]);
 
-  // ─────────────────────────────────────────────────────────────────────────
   return {
     pet,
     isLoading,

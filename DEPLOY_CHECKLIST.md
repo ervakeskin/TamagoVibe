@@ -52,16 +52,13 @@
 
 ---
 
-## 🔧 3. Firebase Yapılandırması
+## 🔧 3. Veri / Backend
 
-- [ ] **Firebase Console** → Proje ayarları → Android/iOS uygulaması eklendi
-- [ ] **`google-services.json`** indirilip `android/app/` klasörüne koyuldu
-- [ ] **`GoogleService-Info.plist`** indirilip `ios/` klasörüne koyuldu
-- [ ] **Firestore Rules** deploy edildi: `firebase deploy --only firestore:rules`
-- [ ] **Firestore Indexes** oluşturuldu:
-  - `graveyard` koleksiyonu: `ownerId ASC, diedAt DESC`
-  - `users` koleksiyonu: `leaderboardLevel DESC`
-- [ ] **Authentication** → Email/Password sağlayıcısı aktif
+İlk sürüm **tek oyunculu ve yerel** (AsyncStorage); Firebase kullanılmıyor.
+
+- [ ] Gizlilik politikasında "veriler yalnızca cihazda tutulur" ifadesi var
+- [ ] Şifre düz metin saklanmıyor (hash) ya da hesap sistemi kaldırıldı
+- [ ] Gerçek partner eklenecekse backend seçildi (Firebase / Supabase vb.) ve bu bölüm güncellendi
 
 ---
 
@@ -160,8 +157,6 @@ eas build --platform ios --profile production
 
 ## 🔒 8. Güvenlik Kontrolleri
 
-- [ ] `firebaseConfig.js`'deki API key'ler **gerçek** ve production için doğru
-- [ ] Firestore Rules production'da test edildi (Simulator değil, gerçek kurallar)
 - [ ] **AsyncStorage** hassas veri saklamıyor (şifre vb.)
 - [ ] `.env` dosyası `.gitignore`'a eklendi
 - [ ] Debug logları production build'den kaldırıldı
@@ -184,9 +179,9 @@ eas build --platform ios --profile production
 - [ ] **iOS** fiziksel cihaz testi (min iOS 15)
 - [ ] Yavaş internet bağlantısında test
 - [ ] Bildirim izni reddedildiğinde uygulama çökmüyor
-- [ ] Firebase offline durumunda uygulama çökmüyor
+- [ ] Uçak modunda uygulama çalışıyor (veri tamamen yerel)
 - [ ] Uygulama arka plana alınıp geri gelindiğinde state korunuyor
-- [ ] Partner senkronizasyonu 2 farklı cihazda test edildi
+- [ ] (Gerçek partner eklenince) Partner senkronizasyonu 2 farklı cihazda test edildi
 - [ ] Level-up modal ve konfeti animasyonu test edildi
 - [ ] Mezarlık ekranı dolu ve boş durumda test edildi
 
@@ -207,9 +202,6 @@ eas build --platform ios --profile production
 ```bash
 # 1. Bağımlılıkları yükle
 npm install
-
-# 2. Firebase kurallarını deploy et
-firebase deploy --only firestore:rules
 
 # 3. Android build
 eas build --platform android --profile production

@@ -41,3 +41,10 @@ app-example
 # generated native folders
 /ios
 /android
+
+# debug / agent logs
+.cursor/
+
+# Blender sources
+*.blend
+*.blend1

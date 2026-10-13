@@ -1,28 +1,40 @@
 // =============================================================================
-// src/components/PetAvatar.jsx — FINAL
-// Statik require() — her dosya sabit string ile tanımlı, hata vermez.
-// Dokunma → zıplama + titreşim + '+5 Mutluluk' süzülür
+// src/components/PetAvatar.jsx
+// Büyük 3D sahne; sürükleyerek döndür, kısa dokunuşla sev
 // =============================================================================
 
-import React, { useEffect, useRef, useState, memo, useCallback } from 'react';
+import React, {
+  useEffect, useRef, useState, memo, useCallback, useMemo,
+} from 'react';
 import {
-  View, Text, Image, Animated,
-  StyleSheet, Pressable, Vibration,
+  View, Text, Animated, PanResponder,
+  StyleSheet, Vibration, useWindowDimensions, Platform,
 } from 'react-native';
-import { PET_TYPES, COLORS } from '../constants/gameConfig';
+import PetModel3D from './PetModel3D';
+import { NATIVE_DRIVER } from '../utils/animation';
 
-// ─── Statik require — her biri sabit string, dinamik kullanım YOK ─────────────
-const PET_IMAGES = {
-  FOX:      require('../assets/images/fox.jpg'),
-  CAT:      require('../assets/images/cat.jpg'),
-  PANDA:    require('../assets/images/panda.jpg'),
-  RABBIT:   require('../assets/images/rabbit.jpg'),
-  DOG:      require('../assets/images/fox.jpg'),      // henüz yok → fox göster
-  KOALA:    require('../assets/images/panda.jpg'),    // henüz yok → panda göster
-  CAPYBARA: require('../assets/images/rabbit.jpg'),   // henüz yok → rabbit göster
-  LION:     require('../assets/images/fox.jpg'),      // henüz yok → fox göster
-  FROG:     require('../assets/images/panda.jpg'),    // henüz yok → panda göster
-};
+const MAX_STAGE_W = 400;
+const STAGE_MIN_H = 280;
+const STAGE_MAX_H = 340;
+const FLOAT_PAD_TOP = 28;
+const TAP_MOVE_THRESHOLD = 8;
+const DEFAULT_ROTATION = 0.7;   // 3/4 görünüm
+const ROTATE_SENSITIVITY = 0.012;
+
+/** Kart içi gerçek genişliğe göre sahne (web'de tam ekran %90 taşmasın) */
+function computeStageSize(containerW, screenW) {
+  const fallback = Math.min(
+    Math.round(screenW * 0.78),
+    MAX_STAGE_W,
+    Math.max(260, screenW - 72),
+  );
+  const available = containerW > 0 ? containerW : fallback;
+  const stageW = Math.min(Math.floor(available), MAX_STAGE_W);
+  const stageH = Math.round(
+    Math.min(STAGE_MAX_H, Math.max(STAGE_MIN_H, stageW * 0.88)),
+  );
+  return { width: Math.max(stageW, 240), height: stageH };
+}
 
 // ─── Glow renk haritası ───────────────────────────────────────────────────────
 const GLOW = {
@@ -31,13 +43,14 @@ const GLOW = {
   PANDA:    { color: '#B2F5EA', rgba: 'rgba(178,245,234,0.35)' },
   RABBIT:   { color: '#FFD6C0', rgba: 'rgba(255,214,192,0.30)' },
   DOG:      { color: '#BEE3F8', rgba: 'rgba(190,227,248,0.35)' },
+  HUSKY:    { color: '#BEE3F8', rgba: 'rgba(190,227,248,0.35)' },
+  WOLF:     { color: '#E2E8F0', rgba: 'rgba(160,174,192,0.30)' },
   KOALA:    { color: '#BEE3F8', rgba: 'rgba(190,227,248,0.30)' },
   CAPYBARA: { color: '#B2F5EA', rgba: 'rgba(178,245,234,0.30)' },
   LION:     { color: '#E9D8FD', rgba: 'rgba(233,216,253,0.30)' },
   FROG:     { color: '#B2F5EA', rgba: 'rgba(178,245,234,0.35)' },
 };
 
-// ─── Mood → overlay emoji ─────────────────────────────────────────────────────
 const MOOD_OVERLAY = {
   HUNGRY:   '🍴',
   SAD:      '💧',
@@ -47,15 +60,14 @@ const MOOD_OVERLAY = {
   DEAD:     '💀',
 };
 
-// ─── Floating '+5 Mutluluk' bileşeni ─────────────────────────────────────────
 const FloatingText = memo(({ color }) => {
   const opacity    = useRef(new Animated.Value(1)).current;
   const translateY = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(translateY, { toValue: -65, duration: 950, useNativeDriver: true }),
-      Animated.timing(opacity,    { toValue: 0,   duration: 950, useNativeDriver: true }),
+        Animated.timing(translateY, { toValue: -65, duration: 950, useNativeDriver: false }),
+      Animated.timing(opacity,    { toValue: 0,   duration: 950, useNativeDriver: NATIVE_DRIVER }),
     ]).start();
   }, []);
 
@@ -68,64 +80,54 @@ const FloatingText = memo(({ color }) => {
   );
 });
 
-// =============================================================================
 const PetAvatar = memo(({
   mood    = 'HAPPY',
   name    = 'Koko',
   level   = 1,
   petType = 'FOX',
-  onTouch,           // PetScreen → actions.touchPet
+  onTouch,
+  reaction = null,
 }) => {
-  const glow     = GLOW[petType]      ?? GLOW.FOX;
-  const image    = PET_IMAGES[petType] ?? PET_IMAGES.FOX;
+  const { width: screenW } = useWindowDimensions();
+  const [containerW, setContainerW] = useState(0);
+
+  const { width: stageW, height: stageH } = useMemo(
+    () => computeStageSize(containerW, screenW),
+    [containerW, screenW],
+  );
+  const stageSize = useMemo(() => ({ width: stageW, height: stageH }), [stageW, stageH]);
+
+  const onContainerLayout = useCallback((e) => {
+    const w = e.nativeEvent.layout.width;
+    if (w > 0 && Math.abs(w - containerW) > 1) setContainerW(w);
+  }, [containerW]);
+
+  const typeKey  = petType ? String(petType).toUpperCase() : 'FOX';
+  const glow     = GLOW[typeKey]      ?? GLOW.FOX;
   const overlay  = MOOD_OVERLAY[mood] ?? null;
 
-  const [floats, setFloats] = useState([]);
+  const [floats, setFloats]       = useState([]);
+  const [rotationY, setRotationY] = useState(DEFAULT_ROTATION);
 
   const floatAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(1)).current;
   const glowAnim  = useRef(new Animated.Value(0.65)).current;
   const jumpAnim  = useRef(new Animated.Value(0)).current;
 
-  // ── Yüzme hareketi ────────────────────────────────────────────────────
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(floatAnim, { toValue: -6, duration: 1800, useNativeDriver: true }),
-        Animated.timing(floatAnim, { toValue:  0, duration: 1800, useNativeDriver: true }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, []);
+  const rotationRef      = useRef(0);
+  const baseRotationRef  = useRef(0);
+  const dragActiveRef    = useRef(false);
+  const totalMoveRef     = useRef(0);
 
-  // ── Glow nefesi ───────────────────────────────────────────────────────
   useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(glowAnim, { toValue: 1.0,  duration: 1600, useNativeDriver: true }),
-        Animated.timing(glowAnim, { toValue: 0.55, duration: 1600, useNativeDriver: true }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, []);
+    rotationRef.current = rotationY;
+  }, [rotationY]);
 
-  // ── Mood değişiminde pop ──────────────────────────────────────────────
-  useEffect(() => {
-    Animated.sequence([
-      Animated.timing(scaleAnim, { toValue: 0.86, duration: 80, useNativeDriver: true }),
-      Animated.spring(scaleAnim, { toValue: 1,    friction: 4,  useNativeDriver: true }),
-    ]).start();
-  }, [mood]);
-
-  // ── Dokunma: zıplama + titreşim + floating text ───────────────────────
   const handleTouch = useCallback(() => {
     Vibration.vibrate(15);
 
     Animated.sequence([
-      Animated.spring(jumpAnim, { toValue: -24, friction: 3, tension: 120, useNativeDriver: true }),
-      Animated.spring(jumpAnim, { toValue:   0, friction: 4, tension:  80, useNativeDriver: true }),
+      Animated.spring(jumpAnim, { toValue: -24, friction: 3, tension: 120, useNativeDriver: false }),
+      Animated.spring(jumpAnim, { toValue:   0, friction: 4, tension:  80, useNativeDriver: false }),
     ]).start();
 
     const id = Date.now();
@@ -135,68 +137,137 @@ const PetAvatar = memo(({
     onTouch?.();
   }, [onTouch, jumpAnim]);
 
-  return (
-    <View style={styles.wrapper}>
+  const panResponder = useMemo(
+    () => PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder:  (_, g) => (
+        Math.abs(g.dx) > 4 || Math.abs(g.dy) > 4
+      ),
+      onPanResponderGrant: () => {
+        dragActiveRef.current = false;
+        totalMoveRef.current = 0;
+        baseRotationRef.current = rotationRef.current;
+      },
+      onPanResponderMove: (_, g) => {
+        const moved = Math.abs(g.dx) + Math.abs(g.dy);
+        totalMoveRef.current = Math.max(totalMoveRef.current, moved);
+        if (moved > TAP_MOVE_THRESHOLD) {
+          dragActiveRef.current = true;
+        }
+        if (dragActiveRef.current) {
+          const next = baseRotationRef.current + g.dx * ROTATE_SENSITIVITY;
+          rotationRef.current = next;
+          setRotationY(next);
+        }
+      },
+      onPanResponderRelease: () => {
+        if (!dragActiveRef.current && totalMoveRef.current < TAP_MOVE_THRESHOLD) {
+          handleTouch();
+        }
+        dragActiveRef.current = false;
+        totalMoveRef.current = 0;
+      },
+      onPanResponderTerminate: () => {
+        dragActiveRef.current = false;
+        totalMoveRef.current = 0;
+      },
+    }),
+    [handleTouch],
+  );
 
-      {/* Glow halkası */}
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, { toValue: -6, duration: 1800, useNativeDriver: false }),
+        Animated.timing(floatAnim, { toValue:  0, duration: 1800, useNativeDriver: false }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, []);
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(glowAnim, { toValue: 1.0,  duration: 1600, useNativeDriver: NATIVE_DRIVER }),
+        Animated.timing(glowAnim, { toValue: 0.55, duration: 1600, useNativeDriver: NATIVE_DRIVER }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, []);
+
+  const glowSize = Math.min(stageW + 20, stageH + 40);
+
+  return (
+    <View
+      style={[styles.wrapper, { minHeight: stageH + FLOAT_PAD_TOP + 56 }]}
+      onLayout={onContainerLayout}
+    >
+
       <Animated.View
+        pointerEvents="none"
         style={[
           styles.glowRing,
           {
+            width:           glowSize,
+            height:          glowSize,
+            borderRadius:    glowSize / 2,
+            top:             FLOAT_PAD_TOP + stageH * 0.5 - glowSize * 0.5,
             backgroundColor: glow.rgba,
             shadowColor:     glow.color,
             opacity:         glowAnim,
             transform: [{
               scale: glowAnim.interpolate({
                 inputRange:  [0.55, 1],
-                outputRange: [1,    1.14],
+                outputRange: [1,    1.08],
               }),
             }],
           },
         ]}
       />
 
-      {/* Floating metin */}
       {floats.map((id) => (
         <View key={id} style={styles.floatWrap} pointerEvents="none">
           <FloatingText color={glow.color} />
         </View>
       ))}
 
-      {/* Karakter — dokunulabilir */}
-      <Pressable onPress={handleTouch} activeOpacity={0.9}>
+      <View
+        style={[styles.stageOuter, { width: stageW, marginTop: FLOAT_PAD_TOP }]}
+        {...panResponder.panHandlers}
+      >
+        {/* translateY: useNativeDriver false — WebGL canvas kırılmasın */}
         <Animated.View
           style={[
-            styles.characterWrap,
+            styles.modelStage,
             {
-              shadowColor: glow.color,
-              transform: [
-                { translateY: Animated.add(floatAnim, jumpAnim) },
-                { scale: scaleAnim },
-              ],
+              width:  stageW,
+              height: stageH,
+              transform: [{ translateY: Animated.add(floatAnim, jumpAnim) }],
             },
           ]}
         >
-          <Image
-            source={image}
-            style={styles.petImage}
-            resizeMode="contain"
+          <PetModel3D
+            key={`${stageW}x${stageH}`}
+            petType={typeKey}
+            reaction={reaction}
+            mood={mood}
+            rotationY={rotationY}
+            size={stageSize}
           />
-
-          {/* Mood overlay ikonu (üst-sağ köşe) */}
           {overlay && (
-            <View style={styles.overlayBubble}>
+            <View style={styles.overlayBubble} pointerEvents="none">
               <Text style={styles.overlayTxt}>{overlay}</Text>
             </View>
           )}
         </Animated.View>
-      </Pressable>
+      </View>
 
-      {/* İsim + level */}
       <View style={styles.nameRow}>
         <Text style={styles.petName}>{name}</Text>
-        <View style={[styles.levelPill, { borderColor: glow.color + '99' }]}>
-          <Text style={[styles.levelTxt, { color: glow.color }]}>lv.{level}</Text>
+        <View style={[styles.levelPill, { borderColor: 'rgba(74,90,58,0.35)' }]}>
+          <Text style={[styles.levelTxt, { color: '#4A5A3A' }]}>lv.{level}</Text>
         </View>
       </View>
 
@@ -204,53 +275,51 @@ const PetAvatar = memo(({
   );
 });
 
-// ─── Stiller ─────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   wrapper: {
     alignItems:      'center',
-    justifyContent:  'center',
-    paddingVertical: 16,
+    justifyContent:  'flex-start',
+    paddingVertical: 8,
+    width:           '100%',
+    maxWidth:        '100%',
+    overflow:        'visible',
+    ...(Platform.OS === 'web' ? { alignSelf: 'center' } : {}),
   },
   glowRing: {
     position:     'absolute',
-    width:         190,
-    height:        190,
-    borderRadius:  95,
+    alignSelf:    'center',
+    zIndex:       0,
     shadowOffset:  { width: 0, height: 0 },
-    shadowOpacity: 0.45,
-    shadowRadius:  28,
+    shadowOpacity: 0.4,
+    shadowRadius:  32,
     elevation:     0,
   },
+  stageOuter: {
+    zIndex:       2,
+    overflow:     'visible',
+    alignItems:   'center',
+  },
   floatWrap: {
-    position:      'absolute',
-    top:            0,
-    alignSelf:     'center',
-    zIndex:         99,
+    position:  'absolute',
+    top:       40,
+    alignSelf: 'center',
+    zIndex:    99,
   },
   floatTxt: {
     fontSize:   14,
     fontWeight: '700',
     fontStyle:  'italic',
   },
-  characterWrap: {
-    width:          160,
-    height:         160,
+  modelStage: {
     alignItems:     'center',
     justifyContent: 'center',
-    shadowOffset:   { width: 0, height: 5 },
-    shadowOpacity:  0.15,
-    shadowRadius:   14,
-    elevation:      5,
-  },
-  petImage: {
-    width:        156,
-    height:       156,
-    borderRadius: 78,
+    overflow:       'visible',
+    position:       'relative',
   },
   overlayBubble: {
     position:        'absolute',
-    top:             -4,
-    right:           -4,
+    top:             8,
+    right:           8,
     backgroundColor: '#FFFBF5',
     borderRadius:    18,
     padding:         6,
@@ -267,7 +336,7 @@ const styles = StyleSheet.create({
     flexDirection:  'row',
     alignItems:     'center',
     gap:             8,
-    marginTop:       16,
+    marginTop:       14,
   },
   petName: {
     fontSize:      20,

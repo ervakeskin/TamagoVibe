@@ -1,22 +1,22 @@
 // =============================================================================
-// src/constants/theme.js — TamagoVibe Design System
-// Tüm renk, tipografi, spacing ve gölge değerleri bu dosyadan yönetilir.
+// src/constants/theme.js — TamagoVibe tek tasarım sistemi (krem / pastel)
+// Tüm ekranlar renk, tipografi, boşluk ve gölgeyi buradan alır.
 // =============================================================================
 
-// ─── Neon Vurgu Renkleri ─────────────────────────────────────────────────────
+// ─── Pastel vurgu renkleri ───────────────────────────────────────────────────
 export const NEON = {
-  purple:  '#9d8df1',
-  violet:  '#7c6aff',
-  cyan:    '#48cae4',
-  gold:    '#ffd166',
-  coral:   '#f4845f',
-  rose:    '#e06c75',
-  green:   '#98c379',
-  blue:    '#61afef',
-  magenta: '#c678dd',
+  purple:  '#B9A7E8',
+  violet:  '#9C87E0',
+  cyan:    '#7CCBD9',
+  gold:    '#F2C46D',
+  coral:   '#E8927C',
+  rose:    '#E58E9A',
+  green:   '#A8C5A0',
+  blue:    '#8DB8E8',
+  magenta: '#D4A0C0',
 };
 
-// ─── Mezarlık / Ölüm Paleti ──────────────────────────────────────────────────
+// ─── Mezarlık / Ölüm paleti (bilinçli koyu) ──────────────────────────────────
 export const GRAVEYARD = {
   bg:      '#0a0a0f',
   surface: '#111118',
@@ -26,40 +26,68 @@ export const GRAVEYARD = {
   stone:   '#718096',
 };
 
-// ─── Uygulama Renk Paleti ────────────────────────────────────────────────────
+// ─── Ana palet ───────────────────────────────────────────────────────────────
 export const COLORS = {
   // Arka planlar
-  bg:          '#0d0c1a',
-  bgCard:      '#161528',
-  surface:     '#1e1c35',
-  surfaceAlt:  '#252340',
+  bg:          '#FAF6F1',   // krem
+  bgDeep:      '#F3EDE4',
+  bgCard:      '#FFFFFF',
+  surface:     '#FFFBF5',
+  surfaceAlt:  '#F3EDE4',
+  background:  '#FAF6F1',
+  card:        '#FFFFFF',
 
-  // Cam (Glassmorphism) efektleri
-  glass:       'rgba(255,255,255,0.04)',
-  glassMed:    'rgba(255,255,255,0.07)',
-  glassHigh:   'rgba(255,255,255,0.10)',
-  glassBorder: 'rgba(255,255,255,0.10)',
-  border:      'rgba(255,255,255,0.08)',
+  // Cihaz / LCD
+  shell:       '#F7D6D0',   // Tamagotchi kabuğu
+  shellDeep:   '#E9B7AE',
+  shellShine:  '#FFF1EE',
+  lcd:         '#E6EDD6',   // yeşilimsi LCD
+  lcdDeep:     '#CBD8B4',
+  lcdInk:      '#4A5A3A',
 
-  // Metin hiyerarşisi
-  textPrimary: '#f7fafc',
-  textSecond:  '#cbd5e0',
-  textMuted:   '#718096',
-  textSubtle:  '#4a5568',
+  // Cam / çizgi
+  glass:       'rgba(255,255,255,0.65)',
+  glassMed:    'rgba(255,255,255,0.8)',
+  glassHigh:   '#FFFFFF',
+  glassBorder: 'rgba(201,166,158,0.35)',
+  border:      'rgba(201,166,158,0.22)',
 
-  // Stat renkleri
-  hunger:    '#f4845f',
-  happiness: '#c678dd',
-  energy:    '#61afef',
-  health:    '#98c379',
-  xp:        '#ffd166',
-  partner:   '#48cae4',
+  // Metin
+  text:        '#3D2C2C',
+  textPrimary: '#3D2C2C',
+  textSecond:  '#6B5A57',
+  textSoft:    '#A08C89',
+  textMuted:   '#A08C89',
+  textSubtle:  '#C4B5B5',
 
-  // Durum renkleri
-  danger:  '#ff6b6b',
-  warning: '#f6ad55',
-  success: '#98c379',
-  info:    '#48cae4',
+  // Vurgu
+  primary:     '#E58E9A',
+  secondary:   '#7CCBD9',
+  roseGold:    '#C9A69E',
+
+  // Pet renkleri (glow)
+  mint:        '#B2F5EA',
+  lavender:    '#E9D8FD',
+  sky:         '#BEE3F8',
+  peach:       '#FFD6C0',
+
+  // Stat çubukları
+  statHunger:    '#E8927C',
+  statHappiness: '#D4A0C0',
+  statEnergy:    '#8DB8E8',
+  statHealth:    '#A8C5A0',
+  hunger:        '#E8927C',
+  happiness:     '#D4A0C0',
+  energy:        '#8DB8E8',
+  health:        '#A8C5A0',
+  xp:            '#F2C46D',
+  partner:       '#7CCBD9',
+
+  // Durum
+  danger:  '#E8927C',
+  warning: '#F4A261',
+  success: '#A8C5A0',
+  info:    '#7CCBD9',
 };
 
 // ─── Tipografi ────────────────────────────────────────────────────────────────
@@ -83,7 +111,7 @@ export const FONTS = {
   '5xl': 64,
 };
 
-// ─── Spacing Sistemi ─────────────────────────────────────────────────────────
+// ─── Boşluk ───────────────────────────────────────────────────────────────────
 export const SPACING = {
   xs:    4,
   sm:    8,
@@ -96,7 +124,7 @@ export const SPACING = {
   '4xl': 56,
 };
 
-// ─── Border Radius ────────────────────────────────────────────────────────────
+// ─── Köşe yarıçapı ────────────────────────────────────────────────────────────
 export const RADIUS = {
   sm:    8,
   md:    12,
@@ -107,45 +135,59 @@ export const RADIUS = {
   full:  9999,
 };
 
-// ─── Gölge Sistemi ────────────────────────────────────────────────────────────
+// ─── Gölgeler (yumuşak, gül altını) ───────────────────────────────────────────
+const SHADOW_COLOR = '#C9A69E';
 export const SHADOWS = {
   sm: {
-    shadowColor:   '#000',
+    shadowColor:   SHADOW_COLOR,
     shadowOffset:  { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.14,
     shadowRadius:  4,
-    elevation:     3,
+    elevation:     2,
   },
   md: {
-    shadowColor:   '#000',
+    shadowColor:   SHADOW_COLOR,
     shadowOffset:  { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.18,
     shadowRadius:  8,
-    elevation:     6,
+    elevation:     4,
   },
   lg: {
-    shadowColor:   '#000',
+    shadowColor:   SHADOW_COLOR,
     shadowOffset:  { width: 0, height: 8 },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.22,
     shadowRadius:  16,
-    elevation:     10,
+    elevation:     8,
   },
-  /** Renkli neon glow gölgesi */
+  /** Renkli yumuşak parıltı */
   neon: (color) => ({
     shadowColor:   color,
     shadowOffset:  { width: 0, height: 0 },
-    shadowOpacity: 0.7,
-    shadowRadius:  16,
-    elevation:     8,
+    shadowOpacity: 0.5,
+    shadowRadius:  14,
+    elevation:     6,
   }),
 };
 
-// ─── Bileşik Kart Stili (paylaşımlı) ─────────────────────────────────────────
+// ─── Kart stili ───────────────────────────────────────────────────────────────
 export const CARD_STYLE = {
   backgroundColor: COLORS.bgCard,
   borderRadius:    RADIUS['2xl'],
   padding:         SPACING.lg,
-  borderWidth:     1,
+  borderWidth:     1.5,
   borderColor:     COLORS.border,
-  ...SHADOWS.lg,
+  ...SHADOWS.md,
+};
+
+/** Ekranlarda kullanılan kart yardımcısı */
+export const cardStyle = (extra = {}) => ({ ...CARD_STYLE, ...extra });
+
+// ─── Titreşim paternleri ──────────────────────────────────────────────────────
+export const VIBRATION = {
+  button:   10,
+  action:   [0, 25, 50, 25],
+  levelUp:  [0, 50, 20, 50],
+  death:    [0, 100, 50, 100],
+  rebirth:  30,
+  alert:    [0, 40, 30, 40],
 };

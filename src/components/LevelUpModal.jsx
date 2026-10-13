@@ -4,6 +4,7 @@
 // =============================================================================
 
 import React, { useEffect, useRef, useMemo, memo } from 'react';
+import { NATIVE_DRIVER } from '../utils/animation';
 import {
   Modal, View, Text, Pressable,
   Animated, StyleSheet, Dimensions,
@@ -26,12 +27,12 @@ const Particle = memo(({ color, startX, delay }) => {
     Animated.sequence([
       Animated.delay(delay),
       Animated.parallel([
-        Animated.timing(y,   { toValue: H * 0.75, duration: 2200, useNativeDriver: true }),
-        Animated.timing(x,   { toValue: drift,    duration: 2200, useNativeDriver: true }),
-        Animated.timing(rot, { toValue: 1,        duration: 2200, useNativeDriver: true }),
+        Animated.timing(y,   { toValue: H * 0.75, duration: 2200, useNativeDriver: NATIVE_DRIVER }),
+        Animated.timing(x,   { toValue: drift,    duration: 2200, useNativeDriver: NATIVE_DRIVER }),
+        Animated.timing(rot, { toValue: 1,        duration: 2200, useNativeDriver: NATIVE_DRIVER }),
         Animated.sequence([
           Animated.delay(1400),
-          Animated.timing(op, { toValue: 0, duration: 800, useNativeDriver: true }),
+          Animated.timing(op, { toValue: 0, duration: 800, useNativeDriver: NATIVE_DRIVER }),
         ]),
       ]),
     ]).start();
@@ -62,8 +63,8 @@ const LevelUpModal = memo(({ visible, level, onDismiss }) => {
   useEffect(() => {
     if (visible) {
       Animated.parallel([
-        Animated.spring(scale,   { toValue: 1, friction: 5, tension: 60, useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 1, duration: 200,            useNativeDriver: true }),
+        Animated.spring(scale,   { toValue: 1, friction: 5, tension: 60, useNativeDriver: NATIVE_DRIVER }),
+        Animated.timing(opacity, { toValue: 1, duration: 200,            useNativeDriver: NATIVE_DRIVER }),
       ]).start();
     } else {
       scale.setValue(0.5);

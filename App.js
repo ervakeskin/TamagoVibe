@@ -5,15 +5,15 @@
 // =============================================================================
 
 import React, { useState, useEffect } from 'react';
-import { View, ActivityIndicator, Text } from 'react-native';
+import { View, ActivityIndicator, Text, Platform } from 'react-native';
 import { NavigationContainer }          from '@react-navigation/native';
 import { createNativeStackNavigator }   from '@react-navigation/native-stack';
 import { createBottomTabNavigator }     from '@react-navigation/bottom-tabs';
-import { onAuthStateChanged }           from 'firebase/auth';
-import { doc, getDoc }                  from 'firebase/firestore';
 
-import { auth, db }                     from './src/api/firebaseConfig';
+import { subscribeSession } from './src/services/authService';
 import { registerForPushNotifications } from './src/api/notificationService';
+import { COLORS } from './src/constants/theme';
+import { installGlobalErrorHandler, logError } from './src/utils/logger';
 
 import LoginScreen      from './src/screens/LoginScreen';
 import RegisterScreen   from './src/screens/RegisterScreen';
@@ -23,15 +23,30 @@ import ChatDetailScreen from './src/screens/ChatDetailScreen';
 import GraveyardScreen  from './src/screens/GraveyardScreen';
 import SocialScreen     from './src/screens/SocialScreen';
 
+installGlobalErrorHandler();
+
 const Stack = createNativeStackNavigator();
 const Tab   = createBottomTabNavigator();
 
 const P = {
-  cream:    '#FAF6F1',
-  roseGold: '#C9A69E',
-  textSoft: '#A08C89',
-  text:     '#3D2C2C',
-  border:   'rgba(201,166,158,0.22)',
+  cream:    COLORS.bg,
+  roseGold: COLORS.roseGold,
+  textSoft: COLORS.textSoft,
+  text:     COLORS.text,
+  border:   COLORS.border,
+};
+
+// Web'de uygulama telefon genişliğinde ortalanır (Android'de etkisiz)
+const webFrame = {
+  outer: { flex: 1, backgroundColor: COLORS.bgDeep },
+  inner: {
+    flex: 1, width: '100%', alignSelf: 'center',
+    maxWidth: Platform.OS === 'web' ? 480 : undefined,
+    backgroundColor: COLORS.bg,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0 0 40px rgba(201,166,158,0.25)' }
+      : {}),
+  },
 };
 
 const SplashScreen = () => (
@@ -56,23 +71,29 @@ const MainTabs = ({ sharedParams }) => (
       const cfg = TAB_CFG[route.name] ?? { icon: '•', label: route.name };
       return {
         headerShown: false,
+        // Etiket + ikon tek dikey blokta: her ekran genişliğinde hizalı kalır
+        tabBarShowLabel: false,
+        tabBarItemStyle: { alignItems: 'center', justifyContent: 'center' },
         tabBarStyle: {
           backgroundColor: P.cream,
           borderTopColor:  P.border,
           borderTopWidth:  1,
           paddingBottom:   8,
           paddingTop:      6,
-          height:          62,
+          height:          64,
         },
         tabBarActiveTintColor:   P.roseGold,
         tabBarInactiveTintColor: P.textSoft,
-        tabBarLabel: ({ focused, color }) => (
-          <Text style={{ color, fontSize: 10, fontWeight: focused ? '700' : '500', fontStyle: 'italic' }}>
-            {cfg.label}
-          </Text>
-        ),
-        tabBarIcon: ({ focused }) => (
-          <Text style={{ fontSize: 20, opacity: focused ? 1 : 0.5 }}>{cfg.icon}</Text>
+        tabBarIcon: ({ focused, color }) => (
+          <View style={{ alignItems: 'center', justifyContent: 'center', width: 80 }}>
+            <Text style={{ fontSize: 20, opacity: focused ? 1 : 0.5 }}>{cfg.icon}</Text>
+            <Text
+              numberOfLines={1}
+              style={{ color, fontSize: 10, marginTop: 2, fontWeight: focused ? '700' : '500', fontStyle: 'italic' }}
+            >
+              {cfg.label}
+            </Text>
+          </View>
         ),
       };
     }}
@@ -84,38 +105,45 @@ const MainTabs = ({ sharedParams }) => (
 );
 
 export default function App() {
-  const [user,      setUser]      = useState(null);
-  const [petId,     setPetId]     = useState(null);
+  const [session,   setSession]   = useState(null);
   const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (fbUser) => {
-      if (fbUser) {
-        setUser(fbUser);
-        try {
-          const snap = await getDoc(doc(db, 'users', fbUser.uid));
-          const data = snap.exists() ? snap.data() : {};
-          setPetId(data.petId ?? `pet_${fbUser.uid}`);
-          registerForPushNotifications(fbUser.uid).catch(() => {});
-        } catch {
-          setPetId(`pet_${fbUser.uid}`);
-        }
-      } else {
-        setUser(null);
-        setPetId(null);
+    let ready = false;
+    const markReady = () => {
+      if (!ready) {
+        ready = true;
+        setAuthReady(true);
       }
-      setAuthReady(true);
+    };
+
+    const unsub = subscribeSession((s) => {
+      setSession(s);
+      markReady();
+      if (s?.uid) {
+        setTimeout(() => registerForPushNotifications().catch((e) => logError('app.push', e)), 500);
+      }
     });
-    return () => unsub();
+    const timer = setTimeout(markReady, 8000);
+
+    return () => {
+      clearTimeout(timer);
+      unsub();
+    };
   }, []);
 
   if (!authReady) return <SplashScreen />;
+
+  const user = session;
+  const petId = session?.petId ?? null;
 
   const sharedParams = user && petId
     ? { petId, userId: user.uid, displayName: user.displayName ?? 'Oyuncu' }
     : {};
 
   return (
+    <View style={webFrame.outer}>
+    <View style={webFrame.inner}>
     <NavigationContainer>
       <Stack.Navigator
         screenOptions={{
@@ -126,12 +154,9 @@ export default function App() {
       >
         {user && petId ? (
           <>
-            {/* Ana tab navigator */}
             <Stack.Screen name="Main">
               {() => <MainTabs sharedParams={sharedParams} />}
             </Stack.Screen>
-
-            {/* Tab dışı ekranlar — slide from right */}
             <Stack.Screen
               name="ChatDetail"
               component={ChatDetailScreen}
@@ -151,5 +176,7 @@ export default function App() {
         )}
       </Stack.Navigator>
     </NavigationContainer>
+    </View>
+    </View>
   );
 }
