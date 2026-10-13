@@ -8,6 +8,7 @@ import { DEMO_PARTNER, DEMO_WELCOME_MESSAGES } from '../constants/demoConfig';
 import { buildChatId, chatStorageKey } from '../utils/chat';
 import { needsHatchMigration } from '../utils/decay';
 import { logError } from '../utils/logger';
+import { makeCredentials, verifyPassword } from '../utils/passwordHash';
 
 const DATA_KEY = '@tamago/data';
 
@@ -16,7 +17,7 @@ const emptyData = () => ({
   pets: {},
   graveyard: [],
   chats: {},
-  accounts: [], // { email, password, uid } — yalnızca cihazda, demo
+  accounts: [], // { email, uid, salt, hash } — yalnızca cihazda (eski kayıtlarda password)
 });
 
 let cache = null;
@@ -66,10 +67,30 @@ export const addAccount = async ({ email, password, uid }) => {
   const data = await load();
   data.accounts.push({
     email: email.trim().toLowerCase(),
-    password,
     uid,
+    ...makeCredentials(password),
   });
   await persist();
+};
+
+/**
+ * Şifre kontrolü. Eski (düz metin) kayıt doğru şifreyle girilirse otomatik olarak
+ * tuzlu özete yükseltilir ve düz metin silinir.
+ */
+export const checkPassword = async (email, password) => {
+  const data = await load();
+  const account = data.accounts.find((a) => a.email === email.trim().toLowerCase());
+  if (!account) return null;
+
+  if (account.hash) return verifyPassword(password, account) ? account : null;
+
+  if (typeof account.password === 'string' && account.password === password) {
+    Object.assign(account, makeCredentials(password));
+    delete account.password;
+    await persist();
+    return account;
+  }
+  return null;
 };
 
 // ─── Kullanıcı / pet ──────────────────────────────────────────────────────────
@@ -156,8 +177,8 @@ export const createUserWithPet = async ({
 
   data.accounts.push({
     email: email.trim().toLowerCase(),
-    password,
     uid,
+    ...makeCredentials(password),
   });
 
   await persist();

@@ -6,7 +6,7 @@
 
 ## 1. Otomatik testler (`npm test`)
 
-**7 paket, 75 test, hepsi geçti.**
+**8 paket, 85 test, hepsi geçti.**
 
 | Paket | Kapsam |
 |-------|--------|
@@ -16,9 +16,10 @@
 | `localStore.test.js` | Pet oluşturma (yumurta), göç, kaydet/abone ol, mezarlık sırası, mesajlar (yeni referans), partnerler |
 | `partnerService.test.js` | Mesaj gönderme, Elif'in cevabı, son mesaj izleme, partner listesi |
 | `logger.test.js` | Kayıt, 100 kayıt sınırı, temizleme, bozuk depolamada hata fırlatmama |
+| `passwordHash.test.js` | SHA-256 test vektörleri ve Node `crypto` ile karşılaştırma (Türkçe, emoji, sınır uzunlukları), tuzlu özet, doğrulama, düz metin saklanmaması, eski hesap göçü |
 | `avatarConfig.test.js` | Her türün modeli var, model dosyaları ve lisans diskte, gerekli animasyon klipleri, eski türlerin varsayılana düşmesi |
 
-Android paket derlemesi: `npx expo export --platform android` → **başarılı** (9.89 MB bundle, 4 model dahil).
+Android paket derlemesi: `npx expo export --platform android` → **başarılı** (9.9 MB bundle, 4 model ve yeni ikonlar dahil). `npx expo config` yeni `app.json`'ı doğruladı.
 
 ## 2. Elle uçtan uca test (web)
 
@@ -45,6 +46,9 @@ Android paket derlemesi: `npx expo export --platform android` → **başarılı*
 | 19 | Anılar (mezarlık) sekmesi, kayıtlar | Geçti |
 | 20 | Geniş ekranda hizalar (sekme çubuğu, 480 px çerçeve) | Geçti (hata #6 düzeltildikten sonra) |
 | 21 | Konsolda hata/uyarı | Yok (yalnızca beklenen geliştirici bilgileri) |
+| 22 | **Şifre göçü:** eski düz metin hesapla giriş → düz metin silindi, tuzlu özet yazıldı, depoda şifre yok | Geçti |
+| 23 | **Rozet bildirimi** (üstten kayan kart) ve ana ekranda başarım listesi, kazanılan rozet vurgusu | Geçti |
+| 24 | Efsanevi tür (Kurt) doğum belgesi, ★★★ Efsanevi | Geçti |
 
 ## 3. Bu turda bulunan ve düzeltilen hatalar
 Ayrıntılar `ERROR_LOG.md` içinde: #7 (sohbet cevabı), #8 (çift mezarlık kaydı), #9 (web bildirim gürültüsü), #10 (web Alert), #6 (sekme hizası).
@@ -61,4 +65,5 @@ Ayrıntılar `ERROR_LOG.md` içinde: #7 (sohbet cevabı), #8 (çift mezarlık ka
 ## 5. Bilinen eksikler
 - Şifreler düz metin saklanıyor (yayından önce çözülmeli).
 - Gerçek partner eşleşmesi yok (bilinçli).
-- Rozet kazanınca bildirim/pencere yok: `useSocialPet` `newBadges` üretiyor ama hiçbir ekran göstermiyor; `BadgeList` bileşeni de kullanılmıyor. Rozet sayısı yalnızca veda ve Anılar ekranlarında görünüyor.
+- Rozetlerin `xpReward` değeri XP olarak verilmiyor (yalnızca kartta yazıyor).
+- Uygulama ikonu ve açılış ekranı Android'de gerçek görünümüyle (adaptive ikon maskesi) cihazda kontrol edilmeli.

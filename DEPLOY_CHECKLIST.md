@@ -57,7 +57,7 @@
 İlk sürüm **tek oyunculu ve yerel** (AsyncStorage); Firebase kullanılmıyor.
 
 - [ ] Gizlilik politikasında "veriler yalnızca cihazda tutulur" ifadesi var
-- [ ] Şifre düz metin saklanmıyor (hash) ya da hesap sistemi kaldırıldı
+- [x] Şifre düz metin saklanmıyor (tuzlu SHA-256 özeti)
 - [ ] Gerçek partner eklenecekse backend seçildi (Firebase / Supabase vb.) ve bu bölüm güncellendi
 
 ---

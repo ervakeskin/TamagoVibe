@@ -38,17 +38,10 @@ function computeStageSize(containerW, screenW) {
 
 // ─── Glow renk haritası ───────────────────────────────────────────────────────
 const GLOW = {
-  FOX:      { color: '#C9A69E', rgba: 'rgba(233,216,253,0.35)' },
-  CAT:      { color: '#FFB3BA', rgba: 'rgba(255,179,186,0.30)' },
-  PANDA:    { color: '#B2F5EA', rgba: 'rgba(178,245,234,0.35)' },
-  RABBIT:   { color: '#FFD6C0', rgba: 'rgba(255,214,192,0.30)' },
-  DOG:      { color: '#BEE3F8', rgba: 'rgba(190,227,248,0.35)' },
-  HUSKY:    { color: '#BEE3F8', rgba: 'rgba(190,227,248,0.35)' },
-  WOLF:     { color: '#E2E8F0', rgba: 'rgba(160,174,192,0.30)' },
-  KOALA:    { color: '#BEE3F8', rgba: 'rgba(190,227,248,0.30)' },
-  CAPYBARA: { color: '#B2F5EA', rgba: 'rgba(178,245,234,0.30)' },
-  LION:     { color: '#E9D8FD', rgba: 'rgba(233,216,253,0.30)' },
-  FROG:     { color: '#B2F5EA', rgba: 'rgba(178,245,234,0.35)' },
+  FOX:   { color: '#C9A69E', rgba: 'rgba(233,216,253,0.35)' },
+  DOG:   { color: '#BEE3F8', rgba: 'rgba(190,227,248,0.35)' },
+  HUSKY: { color: '#BEE3F8', rgba: 'rgba(190,227,248,0.35)' },
+  WOLF:  { color: '#E2E8F0', rgba: 'rgba(160,174,192,0.30)' },
 };
 
 const MOOD_OVERLAY = {

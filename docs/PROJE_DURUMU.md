@@ -1,6 +1,6 @@
 # TamagoVibe — Proje Durumu ve Yayın Yol Haritası
 
-**Son güncelleme:** 2026-10-13 · Hedef: Android, ilk sürüm tek oyunculu · GitHub'da yalnızca Mart'taki ilk commit var, sonraki çalışma **commit edilmedi**.
+**Son güncelleme:** 2026-10-13 (ikinci tur) · Hedef: Android, ilk sürüm tek oyunculu · Çalışma `feature/tamagotchi-ui` dalında GitHub'da.
 
 ## Mimari özet
 
@@ -25,22 +25,28 @@ Expo SDK 51 + React Native 0.74, React Navigation (stack + 3 sekme). Firebase yo
 - Tamagotchi cihaz arayüzü, tek tasarım sistemi (`theme.js`), ortak giriş/kayıt formu
 - Web'de telefon genişliğinde çerçeve
 
+**Yayın hazırlığı (kod tarafı tamam)**
+- Şifreler tuzlu özet (eski hesaplar otomatik yükseltilir)
+- `app.json` kimlikleri, ikon, açılış ekranı, izinler, `allowBackup: false`; `eas.json`
+- Rozet bildirimi + başarım listesi
+- Gizlilik politikası, mağaza metni ve yayın adımları taslakları
+
 **Kalite**
-- 75 birim testi, hata günlüğü (uygulama içi + `docs/ERROR_LOG.md`), test raporu
+- 85 birim testi, hata günlüğü (uygulama içi + `docs/ERROR_LOG.md`), test raporu
 - README ve CHANGELOG güncel
 
 ## YAPILMADI / EKSİK
 
 ### Yayını engelleyenler (P0)
-1. **Commit edilmedi.** Şablon artıkları silindi, yeni dosyalar eklendi; hepsi yerelde. (GitHub'a göndermek kullanıcı onayı ister.)
-2. **Mağaza kimlikleri yok:** `app.json`'da `android.package`, `versionCode`, ikon (adaptive), splash, `expo-notifications` eklentisi; `eas.json` yok, EAS projesi başlatılmadı.
-3. **Şifreler düz metin** (`authService`, `localStore.accounts`). Hash'lenmeli ya da hesap sistemi sadeleştirilmeli.
-4. **Android cihaz testi yapılmadı:** 3D/WebGL, bildirimler, titreşim, klavye. (`docs/TEST_RAPORU.md` bölüm 4)
-5. **Gizlilik politikası, mağaza metni, ekran görüntüleri** yok (`DEPLOY_CHECKLIST.md`).
-6. **Kök `constants/gameConfig.js` kaldı:** şablondan kalan, artık hiçbir yerden import edilmiyor. Silinebilir (bu oturumda silme izni verilmedi).
+1. **`main`'e birleştirme:** çalışma `feature/tamagotchi-ui` dalında; `main` hâlâ ilk commit'te.
+2. **EAS projesi:** `eas login` ve `eas init` (hesap gerekir), `app.json`'a `projectId` eklenir. Adımlar `docs/YAYIN_ADIMLARI.md`'de. Paket adı `com.ervakeskin.tamagovibe` onaylanmalı (yayından sonra değişmez).
+3. **Android cihaz testi yapılmadı:** 3D/WebGL, bildirimler, titreşim, klavye. (`docs/TEST_RAPORU.md` bölüm 4) Önce `eas build --profile preview` ile APK.
+4. **Gizlilik politikasını yayınla:** taslağın iletişim e-postası doldurulup herkese açık adrese konmalı.
+5. **Mağaza varlıkları:** ekran görüntüleri (Android'den), öne çıkan grafik 1024x500, Play Console hesabı ($25).
+6. **Şifre özeti istemci tarafında:** cihaz içi hesap için yeterli; sunucu tabanlı hesap gelirse doğrulama sunucuya taşınmalı.
 
 ### Oyun / özellik (P1)
-7. **Rozet kazanma bildirimi yok:** `newBadges` üretiliyor ama hiçbir ekran göstermiyor; `BadgeList` bileşeni kullanılmıyor.
+7. Rozet bildirimi yapıldı. Rozetlerin `xpReward` değeri henüz XP olarak verilmiyor (yalnızca kartta görünüyor).
 8. **Gerçek partner eşleşmesi yok:** `addPartnerByCode` bilerek hata fırlatır. (Ayrı backend gerekir, ilk sürüm kapsamı dışı.)
 9. **Eski modelden gelen türler:** kayıtlı CAT/PANDA vb. pet'ler Tilki olarak görünür.
 10. **Model boyutu:** 4 x ~3 MB `.gltf`. GLB'ye çevirip sıkıştırmak ilk açılışı hızlandırır.
@@ -48,20 +54,18 @@ Expo SDK 51 + React Native 0.74, React Navigation (stack + 3 sekme). Firebase yo
 12. Ölü pet için "yeni hayat" sonrası eski rozetler (`unlockedBadges`) sıfırlanıyor; kalıcı koleksiyon yok.
 
 ### Teknik borç (P2)
-13. `PetAvatar` içinde `GLOW` tablosunda eski türler (CAT, PANDA...) duruyor.
-14. `ChatScreen.jsx` ölü dosya; `ActionButton`, `XpCircle`, `StatBar`, `BadgeList` kullanılmıyor olabilir (tek tek doğrulanmalı).
+13. Eski GLOW girdileri ve ölü bileşenler temizlendi.
 15. Test kapsamı: ekran bileşenleri ve `useSocialPet` için render testi yok (yalnızca mantık katmanı testli).
 16. SDK 51 → güncel SDK'ya yükseltme planı yok.
 17. CI yok.
 
 ## Önerilen sıra
 
-1. **Commit** (yerel) → kullanıcı onayıyla GitHub'a push
-2. **Android'de dene** (Expo Go): 3D, bildirim, klavye
-3. **Yayın hazırlığı:** `app.json` kimlikleri, ikon/splash, `eas.json`, şifre hash'leme, gizlilik politikası
-4. **Rozet bildirimi**, model sıkıştırma, denge ayarı
+1. **Android'de dene** (Expo Go ya da preview APK): 3D, bildirim, klavye
+2. **EAS + Play Console** (`docs/YAYIN_ADIMLARI.md`), gizlilik politikasını yayınla
+3. **Model sıkıştırma** (GLB), rozet XP ödülü, denge ayarı
 5. **Gerçek partner** (ayrı backend)
 
 ## Açık kararlar
-- Şifre: hash'lemek mi, yoksa ilk sürümde hesap sistemini kaldırıp tek profil mi?
+- Paket adı `com.ervakeskin.tamagovibe` uygun mu?
 - Kedi ve tavşan için ek CC0 model aranacak mı (şu an yalnızca 4 tür)?

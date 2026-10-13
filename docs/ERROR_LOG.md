@@ -62,7 +62,16 @@ Biçim: `#numara · tarih · durum · başlık` → belirti, kök neden, çözü
 
 ---
 
+### #13 · 2026-10-13 · Çözüldü · Düz metin şifre
+- **Belirti:** `accounts` kaydında şifre okunabilir saklanıyordu.
+- **Çözüm:** `passwordHash.js` (tuzlu, 2000 tur SHA-256), `checkPassword`; eski hesaplar doğru şifreyle girişte yükseltilir ve düz metin silinir.
+- **Doğrulama:** `passwordHash.test.js` (Node `crypto` ile birebir), gerçek uygulamada göç.
+
+### #14 · 2026-10-13 · Çözüldü · Rozet bildirimi hiç görünmüyordu
+- **Belirti:** `newBadges` üretiliyordu ama hiçbir ekran göstermiyordu.
+- **Çözüm:** `BadgeToast` + ana ekranda `BadgeList`.
+- **Not:** İlk elle testte "bildirim yok" sanıldı; başlık CSS ile büyük harfe çevrildiği için `innerText` araması yanlış negatif verdi. Arama Türkçe küçük harfe çevrilerek düzeltildi.
+
 ## Açık / izlenecek
-- **Düz metin şifre** (`authService`, `localStore.accounts`): yayından önce hash'lenmeli.
 - **Bildirimler ve 3D/WebGL Android'de doğrulanmadı.**
 - Geniş ekranda 3D yükleme yer tutucusu (“Maskot yükleniyor”) ilk açılışta birkaç saniye görünüyor (4 modelin her biri ~3 MB, GLB'ye çevrilip küçültülebilir).

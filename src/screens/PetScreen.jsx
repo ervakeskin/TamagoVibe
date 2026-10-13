@@ -14,6 +14,8 @@ import DeviceFrame       from '../components/DeviceFrame';
 import EggHatch          from '../components/EggHatch';
 import FoodModal         from '../components/FoodModal';
 import LevelUpModal      from '../components/LevelUpModal';
+import BadgeToast        from '../components/BadgeToast';
+import BadgeList         from '../components/BadgeList';
 import { COLORS, SHADOWS } from '../constants/theme';
 import { HATCH_SECONDS } from '../constants/gameConfig';
 import { hatchSecondsLeft, formatAge } from '../utils/decay';
@@ -35,7 +37,7 @@ const PetScreen = ({ route, navigation }) => {
 
   const {
     pet, isLoading, error,
-    xpProgress, levelUpData,
+    xpProgress, levelUpData, newBadges,
     showRebirth, actions,
   } = useSocialPet({ petId, userId, displayName });
 
@@ -230,8 +232,14 @@ const PetScreen = ({ route, navigation }) => {
           <Text style={styles.socialBtnTxt}>🤝  Arkadaşlar & Sosyal Panel</Text>
         </Pressable>
 
+        <View style={styles.badgeBox}>
+          <BadgeList unlockedBadges={p.unlockedBadges ?? []} newBadges={newBadges} />
+        </View>
+
         <Text style={styles.hint}>💡 Sürükleyerek çevir, dokunarak sev!</Text>
       </ScrollView>
+
+      <BadgeToast badgeIds={newBadges} onDone={actions.dismissBadges} />
 
       <FoodModal
         visible={foodVisible}
@@ -273,6 +281,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: 'rgba(178,245,234,0.55)',
   },
   socialBtnTxt: { color: '#4D9B78', fontWeight: '700', fontSize: 14 },
+  badgeBox: { marginTop: 22 },
 
   critBanner:   { paddingVertical: 10, paddingHorizontal: 20, alignItems: 'center', borderBottomWidth: 1 },
   critTxt:      { fontSize: 13, fontWeight: '700' },

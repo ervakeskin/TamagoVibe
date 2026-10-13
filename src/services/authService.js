@@ -5,6 +5,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   findAccountByEmail,
+  checkPassword,
   createUserWithPet,
   getUser,
 } from './localStore';
@@ -78,8 +79,8 @@ export const register = async ({ displayName, email, password }) => {
 
 export const login = async ({ email, password }) => {
   const normalized = email.trim().toLowerCase();
-  const account = await findAccountByEmail(normalized);
-  if (!account || account.password !== password) {
+  const account = await checkPassword(normalized, password);
+  if (!account) {
     const err = new Error('E-posta veya şifre hatalı.');
     err.code = 'auth/invalid-credential';
     throw err;

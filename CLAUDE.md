@@ -1,4 +1,4 @@
-# TamagoVibe — çalışma kuralları
+﻿# TamagoVibe — çalışma kuralları
 
 Expo (React Native) tamagotchi oyunu, hedef Android, ilk sürüm tek oyunculu ve yerel (AsyncStorage). Dil: Türkçe arayüz ve yorumlar.
 
@@ -21,11 +21,11 @@ Expo (React Native) tamagotchi oyunu, hedef Android, ilk sürüm tek oyunculu ve
 
 ## Güvenlik / dış etkili işlemler
 - GitHub'a push, paylaşım, mağaza işlemleri için kullanıcıdan açık onay al.
-- Düz metin şifre sorunu bilinen açık madde (`docs/PROJE_DURUMU.md` P0).
+- Şifreler `utils/passwordHash.js` ile tuzlu özet olarak saklanır; düz metin yazma. Hesap sunucuya taşınırsa doğrulama da taşınmalı.
 
 ## Komutlar
 ```bash
 npm start      # Expo
-npm test       # jest (75 test)
+npm test       # jest (85 test)
 npx expo export --platform android --output-dir "$TEMP/tv-export"   # bundle doğrulama
 ```

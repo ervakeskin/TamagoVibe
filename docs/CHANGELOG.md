@@ -2,7 +2,25 @@
 
 Yeni özellik veya düzeltme sonrası bu dosyaya, `README.md` ve `docs/PROJE_DURUMU.md` dosyalarına kayıt eklenir.
 
-## 2026-10-13
+## 2026-10-13 (ikinci tur: yayın hazırlığı)
+
+### Eklendi
+- Şifreler tuzlu, 2000 turlu SHA-256 özeti olarak saklanır (`utils/passwordHash.js`); eski düz metin hesaplar ilk girişte otomatik yükseltilir.
+- Android yayın ayarları: `app.json` (paket `com.ervakeskin.tamagovibe`, `versionCode`, izinler, `allowBackup: false`, bildirim eklentisi, açılış ekranı), `eas.json` (preview APK, production AAB).
+- Yumurta temalı uygulama ikonu, adaptive ikon, açılış ekranı ve favicon.
+- Rozet bildirimi (`BadgeToast`) ve ana ekranda başarım listesi (`BadgeList`).
+- Taslaklar: `docs/GIZLILIK_POLITIKASI.md`, `docs/MAGAZA_METNI.md`, `docs/YAYIN_ADIMLARI.md`.
+- README'ye animasyonlu demo (`docs/demo.gif`).
+- 10 yeni test (şifre özeti, Node `crypto` ile doğrulama, eski hesap göçü); toplam 85.
+
+### Kaldırıldı
+- Kullanılmayan `ChatScreen`, `ActionButton`, `XpCircle`, `StatBar` bileşenleri ve şablondan kalan kök `constants/` klasörü.
+- Eski türler (CAT, PANDA...) için `GLOW` girdileri.
+
+### Değişti
+- `userInterfaceStyle` `light` (uygulama yalnızca açık temalı).
+
+## 2026-10-13 (ilk tur)
 
 ### Eklendi
 - Yumurta kuluçka ekranı: sallanma, süreyle büyüyen çatlaklar, çatlama animasyonu, doğum sahnesi.
